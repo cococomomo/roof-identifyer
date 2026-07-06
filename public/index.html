@@ -1,0 +1,3079 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Trafo-Kapazitäten NÖ</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#1a1d26;color:#e0e4ef;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+
+/* ── Top bar ── */
+#topbar{background:#111520;padding:5px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0;border-bottom:1px solid #2a2f42;z-index:1100;flex-wrap:wrap}
+#topbar h1{font-size:.88rem;font-weight:700;white-space:nowrap;color:#7ecfff}
+.meta{font-size:.7rem;color:#8892aa;white-space:nowrap}
+.meta b{color:#c8d6f0}
+#status-chips{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.chip{padding:2px 7px;border-radius:10px;font-size:.67rem;font-weight:700;white-space:nowrap}
+
+/* ── Search ── */
+#search-wrap{position:relative;margin-left:auto}
+#search-input{background:#1e2235;border:1px solid #2e3450;color:#c8d6f0;border-radius:6px;font-size:.76rem;padding:4px 26px 4px 10px;width:210px;outline:none}
+#search-input:focus{border-color:#2563eb}
+#search-input::placeholder{color:#4a5268}
+#search-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:#8892aa;cursor:pointer;font-size:.8rem;padding:0;display:none}
+#search-suggestions{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#1a1d2a;border:1px solid #2e3450;border-radius:6px;z-index:3000;display:none;max-height:200px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.5)}
+.suggestion-item{padding:7px 12px;font-size:.74rem;color:#c8d6f0;cursor:pointer;border-bottom:1px solid #2a2f42}
+.suggestion-item:last-child{border-bottom:none}
+.suggestion-item:hover{background:#2a2f42}
+
+/* ── Layer buttons ── */
+#layer-btns{display:flex;gap:3px;flex-shrink:0}
+.layer-btn{padding:3px 10px;border-radius:5px;font-size:.72rem;font-weight:600;cursor:pointer;border:1px solid #2e3450;background:#1e2235;color:#8892aa;transition:all .15s;white-space:nowrap}
+.layer-btn.active{background:#2563eb;border-color:#2563eb;color:#fff}
+
+/* ── Filter bar ── */
+#filterbar{background:#13161f;padding:5px 14px;display:flex;align-items:center;gap:9px;flex-shrink:0;border-bottom:1px solid #2a2f42;flex-wrap:wrap}
+.cb-label{display:flex;align-items:center;gap:4px;font-size:.72rem;color:#c8d6f0;cursor:pointer;white-space:nowrap;user-select:none}
+.cb-label input{accent-color:#2563eb;cursor:pointer}
+.leg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;border:1px solid rgba(255,255,255,.2)}
+.ctrl-sep{width:1px;height:16px;background:#2e3450;margin:0 1px;flex-shrink:0}
+.toggle-btn{padding:3px 10px;border-radius:5px;font-size:.72rem;font-weight:600;cursor:pointer;border:1px solid #2e3450;background:#1e2235;color:#8892aa;transition:all .15s;white-space:nowrap}
+.toggle-btn.active{background:#374151;border-color:#4b5563;color:#e0e4ef}
+.ctrl-group{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.ctrl-group label{font-size:.71rem;color:#8892aa;white-space:nowrap}
+.fval{font-size:.71rem;color:#7ecfff;white-space:nowrap}
+input[type=range]{width:130px;accent-color:#2563eb;border:none}
+input[type=number]{background:#1e2235;border:1px solid #2e3450;color:#c8d6f0;border-radius:5px;font-size:.74rem;padding:2px 6px;width:66px}
+.bug-btn{padding:3px 9px;border-radius:5px;font-size:.71rem;cursor:pointer;border:1px solid #2e3450;background:#1e2235;color:#8892aa;transition:all .15s;white-space:nowrap}
+.bug-btn:hover{color:#c8d6f0;border-color:#4b5563}
+
+/* ── Stats bar ── */
+#statsbar{background:#0e1018;padding:3px 14px;display:flex;align-items:center;gap:8px;flex-shrink:0;border-bottom:1px solid #2a2f42;font-size:.7rem;color:#8892aa}
+#statsbar b{color:#7ecfff}
+.stat-sep{color:#2e3450}
+
+/* ── Map ── */
+#map-wrap{flex:1;position:relative;min-height:0}
+#map{width:100%;height:100%}
+
+/* ── Spinner ── */
+#spinner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2000;display:none;background:rgba(0,0,0,.65);border-radius:12px;padding:14px 22px;font-size:.83rem;color:#7ecfff}
+#spinner.show{display:block}
+
+/* ── Sidebar ── */
+#sidebar{position:absolute;top:0;right:0;width:310px;height:100%;background:#13161f;border-left:1px solid #2e3450;z-index:1050;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .2s ease}
+#sidebar.open{transform:translateX(0)}
+#sidebar-head{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid #2e3450;gap:8px}
+#sidebar-head h3{font-size:.86rem;color:#c8d6f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+#sb-close{cursor:pointer;color:#8892aa;font-size:1.2rem;line-height:1;flex-shrink:0}
+#sidebar-body{overflow-y:auto;flex:1;padding:14px}
+.sb-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #1e2235;font-size:.77rem}
+.sb-row .lbl{color:#8892aa}
+.sb-row .val{font-weight:600;color:#c8d6f0;text-align:right}
+.status-badge{display:inline-block;padding:2px 9px;border-radius:12px;font-weight:700;font-size:.71rem}
+.btn-action{display:block;width:100%;padding:8px;border-radius:6px;font-size:.79rem;font-weight:600;cursor:pointer;border:none;margin-top:8px;transition:background .15s}
+.btn-doris{background:#2563eb;color:#fff}.btn-doris:hover{background:#1d52c9}
+.btn-lead{background:#16a34a;color:#fff}.btn-lead:hover{background:#158040}
+
+/* ── Scan panel (left slide-in) ── */
+#scan-panel{position:absolute;top:0;left:0;width:350px;height:100%;background:#13161f;border-right:1px solid #2e3450;z-index:1050;display:flex;flex-direction:column;transform:translateX(-100%);transition:transform .22s ease}
+#scan-panel.open{transform:translateX(0)}
+#scan-head{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid #2e3450;gap:8px;flex-shrink:0}
+#scan-head h3{font-size:.86rem;color:#c8d6f0;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#scan-close{cursor:pointer;color:#8892aa;font-size:1.2rem;line-height:1;flex-shrink:0}
+#scan-toolbar{padding:8px 14px;border-bottom:1px solid #2e3450;display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:wrap}
+#scan-toolbar .sort-btn{padding:2px 9px;border-radius:5px;font-size:.69rem;font-weight:600;cursor:pointer;border:1px solid #2e3450;background:#1e2235;color:#8892aa;transition:all .15s}
+#scan-toolbar .sort-btn.active{background:#2563eb;border-color:#2563eb;color:#fff}
+#scan-list{overflow-y:auto;flex:1;padding:6px 0}
+.scan-card{padding:9px 14px;border-bottom:1px solid #1e2235;cursor:pointer;transition:background .12s;display:flex;flex-direction:column;gap:3px}
+.scan-card:hover{background:#1a1e2d}
+.scan-card-top{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.scan-card-name{font-size:.78rem;font-weight:600;color:#c8d6f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.scan-card-kwp{font-size:.9rem;font-weight:700;color:#7ecfff;white-space:nowrap}
+.scan-card-meta{font-size:.68rem;color:#8892aa;display:flex;gap:8px;flex-wrap:wrap}
+.scan-badge-lu{padding:1px 6px;border-radius:4px;font-size:.63rem;font-weight:700;background:#2a2f42;color:#8892aa;white-space:nowrap}
+#scan-empty{padding:30px 20px;font-size:.8rem;color:#4a5268;text-align:center;line-height:1.7}
+
+/* ── Scan modal ── */
+#scan-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center}
+#scan-modal-box{background:#1a1d26;border:1px solid #2e3450;border-radius:12px;padding:24px;width:400px;max-width:95vw;max-height:90vh;overflow-y:auto}
+#scan-modal-box h3{margin:0 0 16px;color:#c8d6f0;font-size:.97rem}
+.scan-form-row{margin-bottom:14px}
+.scan-form-row label{display:block;font-size:.75rem;color:#8892aa;margin-bottom:5px}
+.scan-form-row input[type=number]{background:#13161f;border:1px solid #2e3450;color:#c8d6f0;border-radius:6px;font-size:.82rem;padding:5px 10px;width:100%}
+.scan-status-grid{display:flex;gap:6px;flex-wrap:wrap}
+.scan-status-cb{display:flex;align-items:center;gap:4px;font-size:.73rem;color:#c8d6f0;cursor:pointer;padding:3px 8px;border-radius:5px;border:1px solid #2e3450;background:#1e2235;user-select:none}
+.scan-status-cb input{accent-color:#2563eb;cursor:pointer}
+.scan-hint{font-size:.68rem;color:#4a5268;margin-top:10px;line-height:1.6}
+
+/* ── Scan button in filterbar ── */
+.scan-launch-btn{padding:3px 11px;border-radius:5px;font-size:.72rem;font-weight:700;cursor:pointer;border:1px solid #2563eb;background:#1a2a4a;color:#7ecfff;transition:all .15s;white-space:nowrap}
+.scan-launch-btn:hover{background:#2563eb;color:#fff}
+
+/* Trafo: Hauptbutton + Dropdown-Pfeil für Kapazitäts-Filter */
+#trafo-filter-wrap{position:relative;display:inline-flex;align-items:stretch;flex-shrink:0}
+#btn-trafos{border-radius:5px 0 0 5px;border-right-width:0;padding-right:8px}
+#btn-trafos-caret{border-radius:0 5px 5px 0;padding:3px 8px;min-width:30px;font-size:.62rem;line-height:1;color:#8892aa;border-left:1px solid #3d455c}
+#btn-trafos-caret:hover{color:#c8d6f0}
+#btn-trafos-caret.open{color:#7ecfff}
+#trafo-filter-dropdown{
+  display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:220px;z-index:5000;
+  background:#1a1d26;border:1px solid #2e3450;border-radius:8px;padding:8px 10px 10px;
+  box-shadow:0 8px 24px rgba(0,0,0,.45)
+}
+#trafo-filter-dropdown.open{display:block}
+#trafo-filter-dropdown .trafo-dd-hint{font-size:.65rem;color:#4a5268;line-height:1.35;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #2a2f42}
+#trafo-filter-dropdown .cb-label{display:flex;margin:4px 0}
+
+#gem-filter-wrap{position:relative;display:inline-flex;align-items:stretch;flex-shrink:0}
+#btn-gemeinden{border-radius:5px 0 0 5px;border-right-width:0;padding-right:8px}
+#btn-gemeinden-caret{border-radius:0 5px 5px 0;padding:3px 8px;min-width:30px;font-size:.62rem;line-height:1;color:#8892aa;border-left:1px solid #3d455c}
+#btn-gemeinden-caret.open{color:#7ecfff}
+#gem-filter-dropdown{
+  display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:200px;z-index:5000;
+  background:#1a1d26;border:1px solid #2e3450;border-radius:8px;padding:10px 10px 12px;
+  box-shadow:0 8px 24px rgba(0,0,0,.45)
+}
+#gem-filter-dropdown.open{display:block}
+#gem-filter-dropdown .gem-dd-hint{font-size:.65rem;color:#4a5268;line-height:1.35;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #2a2f42}
+#gem-filter-dropdown .gem-row{margin-top:8px}
+#gem-filter-dropdown label.gem-lbl{display:block;font-size:.68rem;color:#8892aa;margin-bottom:4px}
+#gem-opac-val{font-size:.68rem;color:#7ecfff;margin-left:6px}
+#gem-line-only{margin-right:5px;accent-color:#2563eb}
+
+/* ── Lead markers on map ── */
+.leaflet-tooltip.lead-tip{background:#1a1d26;border:1px solid #2e3450;color:#c8d6f0;font-size:.71rem;padding:3px 8px;border-radius:5px;white-space:nowrap;pointer-events:none}
+.leaflet-tooltip.lead-tip::before{display:none}
+
+/* ── Mini-CRM ── */
+.crm-divider{border:none;border-top:1px solid #2e3450;margin:14px 0 10px}
+.crm-stage-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.crm-stage-select{flex:1;background:#13161f;border:1px solid #2e3450;color:#c8d6f0;border-radius:7px;font-size:.8rem;padding:5px 8px;cursor:pointer}
+.crm-stage-select:focus{outline:none;border-color:#2563eb}
+.crm-stage-pill{display:inline-block;font-size:.68rem;font-weight:700;padding:2px 9px;border-radius:10px;letter-spacing:.03em}
+.crm-contact-field{width:100%;background:#13161f;border:1px solid #2e3450;color:#c8d6f0;border-radius:6px;font-size:.78rem;padding:5px 9px;margin-bottom:5px;box-sizing:border-box}
+.crm-contact-field:focus{outline:none;border-color:#2563eb}
+.crm-note-item{background:#13161f;border:1px solid #1e2440;border-radius:7px;padding:7px 9px;margin-bottom:5px;position:relative}
+.crm-note-text{font-size:.79rem;color:#c8d6f0;line-height:1.4;white-space:pre-wrap;word-break:break-word}
+.crm-note-meta{font-size:.63rem;color:#4a5268;margin-top:3px}
+.crm-note-del{position:absolute;top:5px;right:6px;background:none;border:none;color:#4a5268;cursor:pointer;font-size:.75rem;line-height:1;padding:2px 4px;border-radius:4px}
+.crm-note-del:hover{color:#f87171}
+.crm-note-area{width:100%;background:#13161f;border:1px solid #2e3450;color:#c8d6f0;border-radius:6px;font-size:.78rem;padding:6px 9px;resize:vertical;min-height:54px;margin-top:4px;box-sizing:border-box}
+.crm-note-area:focus{outline:none;border-color:#2563eb}
+.crm-add-note-btn{width:100%;margin-top:5px;padding:6px;background:#1e3a5f;color:#7ecfff;border:1px solid #2563eb;border-radius:6px;font-size:.78rem;cursor:pointer;font-weight:600}
+.crm-add-note-btn:hover{background:#2563eb;color:#fff}
+.crm-del-lead-btn{width:100%;margin-top:8px;padding:5px;background:transparent;color:#4a5268;border:1px solid #2e3450;border-radius:6px;font-size:.71rem;cursor:pointer}
+.crm-del-lead-btn:hover{color:#fca5a5;border-color:#7f1d1d}
+.crm-empty-state{font-size:.79rem;color:#4a5268;text-align:center;padding:10px 0 4px}
+.crm-create-btn{width:100%;padding:7px;background:#14532d;color:#86efac;border:1px solid #16a34a;border-radius:6px;font-size:.8rem;cursor:pointer;font-weight:600}
+.crm-create-btn:hover{background:#16a34a;color:#fff}
+.crm-discard-btn{width:100%;margin-top:6px;padding:7px;background:#450a0a;color:#fecaca;border:1px solid #991b1b;border-radius:6px;font-size:.78rem;cursor:pointer;font-weight:700}
+.crm-discard-btn:hover{background:#7f1d1d;color:#fff}
+.crm-discard-btn:disabled{opacity:.45;cursor:not-allowed}
+.crm-dup-hint a.crm-to-kanban:hover{filter:brightness(1.08);border-color:#22c55e}
+
+/* ── Projekte panel ── */
+#projects-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9998;align-items:center;justify-content:center}
+#projects-box{background:#1a1d26;border:1px solid #2e3450;border-radius:12px;width:680px;max-width:97vw;max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
+#projects-box .proj-header{padding:16px 20px 12px;border-bottom:1px solid #2e3450;display:flex;align-items:center;gap:10px;flex-shrink:0}
+#projects-box .proj-title{font-size:.95rem;font-weight:700;color:#c8d6f0;flex:1}
+#projects-box .proj-close{background:none;border:none;color:#4a5268;font-size:1.2rem;cursor:pointer;padding:2px 6px}
+#projects-box .proj-close:hover{color:#c8d6f0}
+.proj-stage-tabs{display:flex;gap:5px;flex-wrap:wrap;padding:10px 20px 0;flex-shrink:0}
+.proj-stage-tab{font-size:.69rem;padding:3px 10px;border-radius:10px;border:1px solid #2e3450;background:#13161f;color:#8892aa;cursor:pointer;font-weight:600}
+.proj-stage-tab.active,.proj-stage-tab:hover{border-color:#2563eb;color:#7ecfff;background:#1e3a5f}
+#projects-list{flex:1;overflow-y:auto;padding:10px 20px 16px}
+.proj-card{background:#13161f;border:1px solid #2e3450;border-radius:9px;padding:11px 13px;margin-bottom:7px;display:flex;gap:10px;align-items:flex-start;cursor:pointer;transition:border-color .15s}
+.proj-card:hover{border-color:#2563eb}
+.proj-card.proj-card--dead{border-color:#991b1b;background:rgba(69,10,10,.35)}
+.proj-card-icon{font-size:1.3rem;flex-shrink:0;padding-top:1px}
+.proj-card-body{flex:1;min-width:0}
+.proj-card-title{font-size:.82rem;font-weight:700;color:#c8d6f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-card-sub{font-size:.7rem;color:#8892aa;margin-top:1px}
+.proj-card-note{font-size:.72rem;color:#6b7280;margin-top:4px;font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-card-right{flex-shrink:0;text-align:right}
+.proj-card-kwp{font-size:.82rem;font-weight:700;color:#c8d6f0}
+.proj-card-date{font-size:.65rem;color:#4a5268;margin-top:2px}
+.proj-empty{text-align:center;color:#4a5268;font-size:.82rem;padding:30px 0}
+
+/* ── Admin modal ── */
+#admin-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:center;justify-content:center}
+#admin-box{background:#1a1d26;border:1px solid #2e3450;border-radius:12px;padding:24px;width:min(520px,96vw);max-width:96vw;max-height:90vh;overflow-y:auto}
+#admin-box h3{margin:0 0 4px;color:#c8d6f0;font-size:.97rem}
+#admin-box .sub{font-size:.7rem;color:#4a5268;margin-bottom:18px}
+.admin-user-row{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;background:#13161f;border:1px solid #2e3450;margin-bottom:5px}
+.admin-user-row .uname{flex:1;font-size:.83rem;color:#c8d6f0;font-weight:600}
+.admin-user-row .ubadge{font-size:.65rem;padding:1px 7px;border-radius:10px;background:#2563eb;color:#fff;font-weight:700}
+.admin-del-btn{padding:3px 10px;border-radius:5px;font-size:.71rem;cursor:pointer;border:1px solid #7f1d1d;background:#2d0f0f;color:#fca5a5;transition:all .15s}
+.admin-del-btn:hover{background:#7f1d1d;color:#fff}
+.admin-section{font-size:.72rem;font-weight:700;color:#4a5268;text-transform:uppercase;letter-spacing:.06em;margin:16px 0 8px;padding-top:12px;border-top:1px solid #2e3450}
+.admin-form-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.admin-form-row input{flex:1;min-width:110px;background:#13161f;border:1px solid #2e3450;color:#c8d6f0;border-radius:6px;font-size:.8rem;padding:6px 10px}
+.admin-form-row input:focus{outline:none;border-color:#2563eb}
+.admin-add-btn{padding:6px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:.8rem;font-weight:700;white-space:nowrap}
+.admin-add-btn:hover{background:#1d52c9}
+.admin-role-sel{max-width:120px;flex:0 1 auto;font-size:.72rem;padding:4px 6px;border-radius:6px;background:#13161f;border:1px solid #2e3450;color:#c8d6f0;cursor:pointer}
+.admin-user-row.admin-user-block{flex-direction:column;align-items:stretch;gap:8px}
+.admin-user-top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;width:100%}
+.admin-user-tools{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:.72rem}
+.admin-pw-inp{flex:1;min-width:100px;max-width:160px}
+.admin-pw-btn{padding:4px 8px;border-radius:5px;font-size:.7rem;cursor:pointer;border:1px solid #2563eb;background:#1e3a5f;color:#93c5fd}
+.admin-pw-btn:hover{background:#2563eb;color:#fff}
+#admin-msg{font-size:.77rem;margin-top:10px;padding:7px 12px;border-radius:6px;display:none}
+.admin-role-line{display:flex;align-items:center;gap:6px;flex-wrap:wrap;width:100%}
+.admin-role-save{padding:4px 10px;border-radius:5px;font-size:.7rem;font-weight:600;cursor:pointer;border:1px solid #2e3450;background:#1e3a5f;color:#93c5fd;opacity:.55}
+.admin-role-save:not(:disabled):hover{background:#2563eb;color:#fff;border-color:#3b82f6}
+.admin-role-save:not(:disabled){opacity:1;cursor:pointer}
+.admin-perm-hint{position:relative;display:inline-flex;align-items:center;gap:4px;margin:4px 0 0 0;cursor:help;outline:none;flex:1;min-width:0}
+.admin-perm-hint .admin-perm-ico{color:#4a5268;font-size:.7rem;flex-shrink:0}
+.admin-perm-hint .admin-perm-ico-t{font-size:.65rem;color:#4a5268;font-weight:600;letter-spacing:.04em}
+.admin-perm-pop{display:none;position:absolute;z-index:10002;left:0;top:100%;margin-top:4px;min-width:min(100%,300px);max-width:340px;padding:9px 11px;background:#0b0d12;border:1px solid #2e3450;border-radius:8px;box-shadow:0 10px 28px rgba(0,0,0,.45);line-height:1.35}
+.admin-perm-hint:hover .admin-perm-pop,
+.admin-perm-hint:focus .admin-perm-pop{display:block}
+.admin-perm-pop .admin-perm-t{font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6b7280;margin:0 0 6px}
+.admin-perm-row{font-size:.65rem;padding:2px 0;padding-left:14px;position:relative;border-radius:3px}
+.admin-perm-row.yes{color:#86efac;opacity:1}
+.admin-perm-row.no{color:#3d4354;opacity:.75;text-decoration:line-through;text-decoration-color:#4a5268}
+.admin-perm-row::before{content:'';position:absolute;left:0;top:.35em;width:5px;height:5px;border-radius:50%;background:currentColor}
+.admin-perm-row.yes::before{background:#16a34a;opacity:1}
+.admin-perm-row.no::before{background:#374151;opacity:.4}
+#admin-box .subnote{font-size:.64rem;color:#4a5268;margin:4px 0 0;line-height:1.35}
+
+/* ── Pulse ── */
+@keyframes pulse-g{0%{box-shadow:0 0 0 0 rgba(82,255,0,.7)}70%{box-shadow:0 0 0 12px rgba(82,255,0,0)}100%{box-shadow:0 0 0 0 rgba(82,255,0,0)}}
+@keyframes pulse-r{0%{box-shadow:0 0 0 0 rgba(255,0,0,.7)}70%{box-shadow:0 0 0 12px rgba(255,0,0,0)}100%{box-shadow:0 0 0 0 rgba(255,0,0,0)}}
+.pulse-improved{animation:pulse-g 1.6s ease-out infinite}
+.pulse-worsened{animation:pulse-r 1.6s ease-out infinite}
+</style>
+</head>
+<body>
+
+<!-- ── Top bar ── -->
+<div id="topbar">
+  <h1 title="Trafos = Umspann- bzw. Ortsnetzstationen; Daten aus der EVN-Netzkarte (Niederösterreich)">Trafo-Kapazitäten NÖ</h1>
+  <a href="/crm" id="nav-crm" class="nav-crm" title="Vertrieb-CRM: Pipeline, Tabelle, Export" style="font-size:.8rem;font-weight:700;padding:4px 12px;border-radius:6px;background:#0f172a;border:1px solid #2563eb;color:#7ecfff;text-decoration:none;white-space:nowrap">▣ CRM</a>
+  <div id="status-chips"></div>
+  <div id="search-wrap">
+    <input type="text" id="search-input" placeholder="Ort oder Straße suchen…" autocomplete="off"/>
+    <button id="search-clear" onclick="clearSearch()">✕</button>
+    <div id="search-suggestions"></div>
+  </div>
+  <div id="layer-btns">
+    <button class="layer-btn active" id="btn-osm">Karte</button>
+    <button class="layer-btn" id="btn-sat">Satellit</button>
+  </div>
+</div>
+
+<!-- ── Filter bar ── -->
+<div id="filterbar">
+  <div id="trafo-filter-wrap">
+    <button type="button" class="toggle-btn active" id="btn-trafos"
+      title="Umspannwerke (Trafos) auf der Karte ein- oder ausblenden — Messpunkte der verfügbaren Netzkapazität laut EVN-Karte">● Umspannwerke</button>
+    <button type="button" class="toggle-btn active" id="btn-trafos-caret" title="Nach Kapazitäts-Stufe filtern (Frei, Teilweise, …)"
+      aria-expanded="false" aria-haspopup="true" aria-controls="trafo-filter-dropdown">▾</button>
+    <div id="trafo-filter-dropdown" role="menu" aria-labelledby="btn-trafos-caret">
+      <div class="trafo-dd-hint">Auf der Karte sichtbare <b>Kapazität</b> — mindestens eine Stufe aktiv lassen.</div>
+      <label class="cb-label"><input type="checkbox" class="status-cb" value="free" checked><span class="leg-dot" style="background:#169000"></span>Frei</label>
+      <label class="cb-label"><input type="checkbox" class="status-cb" value="partial"><span class="leg-dot" style="background:#52ff00"></span>Teilweise</label>
+      <label class="cb-label"><input type="checkbox" class="status-cb" value="regional"><span class="leg-dot" style="background:#ffff00"></span>Regional</label>
+      <label class="cb-label"><input type="checkbox" class="status-cb" value="local"><span class="leg-dot" style="background:#febe04"></span>Lokal</label>
+      <label class="cb-label"><input type="checkbox" class="status-cb" value="full"><span class="leg-dot" style="background:#cc0000"></span>Voll</label>
+    </div>
+  </div>
+  <div class="ctrl-sep"></div>
+  <button class="toggle-btn" id="btn-buildings">■ Dachflächen</button>
+  <button class="toggle-btn" id="btn-open-areas">◆ Freiflächen</button>
+  <button class="toggle-btn active" id="btn-leads" title="Projekt-Pins ein-/ausblenden">⚑ Projekte</button>
+  <div class="ctrl-sep"></div>
+  <div id="gem-filter-wrap">
+    <button type="button" class="toggle-btn active" id="btn-gemeinden" title="Politische Gemeindegrenzen Niederösterreich">⬡ Gemeinden</button>
+    <button type="button" class="toggle-btn active" id="btn-gemeinden-caret" title="Darstellung" aria-expanded="false" aria-haspopup="true" aria-controls="gem-filter-dropdown">▾</button>
+    <div id="gem-filter-dropdown" role="menu" aria-labelledby="btn-gemeinden-caret">
+      <div class="gem-dd-hint">Quelle: Statistik Austria (Gemeinden), vereinfacht. <b>Einzeltipp</b> = Name · <b>Doppelklick</b> freie Karte = Zoom</div>
+      <div class="gem-row">
+        <label class="gem-lbl">Fülltransparenz (0 = unsichtbar)</label>
+        <div style="display:flex;align-items:center;gap:4px">
+          <input type="range" id="gem-opac" min="0" max="30" step="1" value="8" style="width:120px;accent-color:#2563eb"/>
+          <span id="gem-opac-val">0,08</span>
+        </div>
+      </div>
+      <label class="cb-label" style="margin-top:10px;cursor:pointer">
+        <input type="checkbox" id="gem-line-only"/> <span>Nur Außenlinien (keine Füllung)</span>
+      </label>
+    </div>
+  </div>
+  <div class="ctrl-sep"></div>
+  <div class="ctrl-group" id="area-ctrl" style="display:none">
+    <label>Min. Fläche</label>
+    <input type="range" id="f-area" min="0" max="100" step="1" value="26"/>
+    <input type="number" id="f-area-num" min="100" max="50000" step="50" value="500"
+      style="width:68px;background:#13161f;border:1px solid #2e3450;color:#c8d6f0;border-radius:5px;font-size:.74rem;padding:2px 5px"/>
+    <span class="fval">m² ≈ <span id="fv-area-kwp">143</span> kWp</span>
+  </div>
+  <div class="ctrl-group" id="dist-ctrl" style="display:none">
+    <label>Max. Distanz</label>
+    <input type="range" id="f-dist" min="50" max="500" step="10" value="200"/>
+    <span class="fval" id="fv-dist">200 m</span>
+  </div>
+  <div style="margin-left:auto;flex-shrink:0;display:flex;gap:6px;align-items:center">
+    <button class="scan-launch-btn" onclick="openScanModal()">◈ Flächen-Scan</button>
+    <button class="bug-btn" onclick="openProjectsModal()" style="border-color:#16a34a;color:#86efac">📋 Projekte</button>
+    <button id="admin-btn" class="bug-btn" onclick="openAdminModal()" style="display:none;border-color:#2563eb;color:#7ecfff">⚙ Admin</button>
+    <button class="bug-btn" onclick="openBugModal()">💡 Feedback</button>
+    <button class="bug-btn" onclick="openLogoutModal()" title="App-Daten löschen &amp; Hinweise zum Browser-Login">Abmelden</button>
+  </div>
+</div>
+
+<!-- ── Stats bar ── -->
+<div id="statsbar">
+  <span id="stat-net-scan" style="font-size:.68rem;color:#8892aa;white-space:nowrap" title="Zeitpunkt des letzten Imports aus der EVN-Netzkarte">Letzter Netz-Scan: <b id="stat-net-scan-val" style="color:#7ecfff;font-weight:600">—</b></span>
+  <span class="stat-sep">|</span>
+  <b id="stat-buildings">—</b> Dachflächen
+  <span class="stat-sep" id="sep-oa" style="display:none">|</span>
+  <b id="stat-open-areas" style="display:none">—</b><span id="stat-oa-label" style="display:none"> Freiflächen</span>
+  <span class="stat-sep">|</span>
+  <b id="stat-mwp">—</b> MWp Potential
+</div>
+
+<!-- ── Map + overlays + sidebar ── -->
+<div id="map-wrap">
+  <div id="map"></div>
+  <div id="spinner">⏳ Lade…</div>
+
+  <!-- Measure panel -->
+  <div id="measure-panel" style="display:none;position:absolute;top:10px;right:54px;z-index:2000;background:rgba(16,18,28,.95);border:1px solid #2e3450;border-radius:8px;padding:7px 12px;align-items:center;gap:8px;white-space:nowrap">
+    <span style="font-size:.72rem;color:#8892aa">Messen:</span>
+    <button class="layer-btn" id="mbtn-line" onclick="startMeasureLine()">📏 Linie</button>
+    <button class="layer-btn" id="mbtn-area" onclick="startMeasureArea()">⬟ Fläche</button>
+    <button class="layer-btn" id="mbtn-click" onclick="startMeasureClick()">👆 Gebäude</button>
+    <button onclick="clearMeasure()" style="background:none;border:none;color:#8892aa;cursor:pointer;font-size:.9rem;padding:0 4px">✕</button>
+  </div>
+  <div id="measure-result" style="display:none;position:absolute;bottom:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.82);color:#7ecfff;padding:8px 20px;border-radius:8px;font-size:.84rem;font-weight:600;z-index:2000;pointer-events:none;white-space:nowrap"></div>
+  <div id="bld-zoom-msg" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.78);color:#7ecfff;padding:14px 24px;border-radius:10px;font-size:.88rem;z-index:1500;pointer-events:none;text-align:center">
+    Bitte reinzoomen um Dachflächen zu sehen<br><span style="font-size:.73rem;color:#8892aa">(Zoom 13+)</span>
+  </div>
+
+  <!-- Scan results panel (left) -->
+  <div id="scan-panel">
+    <div id="scan-head">
+      <h3 id="scan-title">Flächen-Scan</h3>
+      <span id="scan-close" onclick="closeScanPanel()">✕</span>
+    </div>
+    <div id="scan-toolbar">
+      <span style="font-size:.69rem;color:#8892aa;white-space:nowrap">Sortieren:</span>
+      <button class="sort-btn active" id="sort-kwp"  onclick="setScanSort('kwp')">↓ kWp</button>
+      <button class="sort-btn"       id="sort-area" onclick="setScanSort('area')">↓ Fläche</button>
+      <button class="sort-btn"       id="sort-dist" onclick="setScanSort('dist')">↑ Distanz</button>
+      <div id="scan-dl-wrap" style="display:none;align-items:center;gap:4px;margin-left:8px;flex-wrap:wrap">
+        <span style="font-size:.69rem;color:#8892aa;white-space:nowrap">Export:</span>
+        <button type="button" class="sort-btn" onclick="downloadScanGeoJSON()" title="Als GeoJSON speichern">⬇ GeoJSON</button>
+        <button type="button" class="sort-btn" onclick="downloadScanCSV()" title="Als CSV speichern">⬇ CSV</button>
+        <button type="button" class="sort-btn" id="scan-crm-seed" onclick="seedScanToCrm()" title="Neue CRM-Projekte anlegen (ohne Duplikate)" style="border-color:#16a34a;color:#86efac">＋ CRM</button>
+      </div>
+      <button onclick="openScanModal()" style="margin-left:auto;padding:2px 9px;border-radius:5px;font-size:.69rem;cursor:pointer;border:1px solid #2e3450;background:#1e2235;color:#8892aa">⚙ Filter</button>
+    </div>
+    <div id="scan-list"></div>
+  </div>
+
+  <!-- Sidebar -->
+  <div id="sidebar">
+    <div id="sidebar-head">
+      <h3 id="sb-title">—</h3>
+      <span id="sb-close">✕</span>
+    </div>
+    <div id="sidebar-body"></div>
+  </div>
+</div>
+
+<!-- Projekte modal -->
+<div id="projects-modal">
+  <div id="projects-box">
+    <div class="proj-header">
+      <span class="proj-title">📋 Projekte & Leads</span>
+      <button class="proj-close" onclick="closeProjectsModal()">✕</button>
+    </div>
+    <div class="proj-stage-tabs" id="proj-stage-tabs">
+      <button class="proj-stage-tab active" data-stage="" onclick="filterProjects('')">Alle</button>
+      <button class="proj-stage-tab" data-stage="zu_recherchieren"            onclick="filterProjects('zu_recherchieren')">Zu recherch.</button>
+      <button class="proj-stage-tab" data-stage="recherche_begonnen"         onclick="filterProjects('recherche_begonnen')">Rech. beg.</button>
+      <button class="proj-stage-tab" data-stage="anrufversuch"              onclick="filterProjects('anrufversuch')">Anrufversuch</button>
+      <button class="proj-stage-tab" data-stage="infos_vollmacht_versendet" onclick="filterProjects('infos_vollmacht_versendet')">Infos+VM</button>
+      <button class="proj-stage-tab" data-stage="vollmacht_erhalten"        onclick="filterProjects('vollmacht_erhalten')">Vollm. erhalten</button>
+      <button class="proj-stage-tab" data-stage="vororttermin"              onclick="filterProjects('vororttermin')">VorOrt</button>
+      <button class="proj-stage-tab" data-stage="netzpruefung_positiv"      onclick="filterProjects('netzpruefung_positiv')">Netz+</button>
+      <button class="proj-stage-tab" data-stage="verworfen"                  onclick="filterProjects('verworfen')">Verworfen</button>
+    </div>
+    <div id="projects-list"><div class="proj-empty">⏳ Lade…</div></div>
+  </div>
+</div>
+
+<!-- Admin modal -->
+<div id="admin-modal">
+  <div id="admin-box">
+    <h3>⚙ Benutzerverwaltung</h3>
+    <div class="sub">Nur sichtbar mit Rolle <strong>Admin</strong> (Basic-Auth + CRM-Rollen). Änderungen an Passwörtern: Nginx-Konfig sofort per reload aktiv.</div>
+
+    <div class="admin-section">Aktive Benutzer</div>
+    <p class="subnote" style="margin-top:0">Rollen: <strong>admin</strong> = Server-Admin; <strong>vertrieb</strong> = CRM inkl. Firmen & Löschen; <strong>assistenz</strong> = CRM bearbeiten ohne Firmen/Löschen. Rollen-Änderung: erst im Dropdown wählen, dann <strong>Speichern</strong>. Hover auf „Berechtigungen“: Übersicht.</p>
+    <div id="admin-user-list"><div style="font-size:.8rem;color:#4a5268">⏳ Lade…</div></div>
+
+    <div class="admin-section">Neuer Benutzer / Passwort setzen</div>
+    <p style="font-size:.7rem;color:#4a5268;margin:-4px 0 6px">Neu anlegen oder <strong>bestehenden</strong> Benutzernamen mit neuem Passwort speichern = Passwort ändern (htpasswd aktualisieren).</p>
+    <div class="admin-form-row">
+      <input id="admin-new-user" type="text"     placeholder="Benutzername" autocomplete="off" spellcheck="false"/>
+      <input id="admin-new-pass" type="password" placeholder="Passwort (min. 6 Zeichen)" autocomplete="new-password"/>
+      <button class="admin-add-btn" onclick="adminAddUser()">＋ Anlegen / speichern</button>
+    </div>
+    <div style="font-size:.67rem;color:#4a5268">Existierenden User eingeben → Passwort wird geändert. Neuer User → wird angelegt.</div>
+
+    <div id="admin-msg"></div>
+
+    <div class="admin-section">Trafo-Daten (EVN WMS)</div>
+    <div class="sub" style="margin-bottom:10px;line-height:1.45">
+      Vollständiger Neu-Import aller Stationen aus der offiziellen Netzkarte (<code style="font-size:.65rem">TRAFO_MAP_URL</code> auf dem Server):
+      Kachel-Scan über ganz Niederösterreich, Farbanalyse der Symbole und <code style="font-size:.65rem">GetFeatureInfo</code> für Kapazitäts-Status — siehe <code style="font-size:.65rem">src/trafo-scanner.js</code>.
+      Laufzeit oft <b>15–60&nbsp;Min.</b>, Verarbeitung im <b>Hintergrund</b> (kein Browser-Timeout).
+    </div>
+    <pre id="admin-trafo-scan-line" style="margin:0 0 10px;padding:10px;background:#0f1219;border:1px solid #2e3450;border-radius:8px;font-size:.68rem;color:#a8b8d8;white-space:pre-wrap;word-break:break-word;max-height:140px;overflow-y:auto;font-family:ui-monospace,monospace">⏳ Status wird geladen…</pre>
+    <button type="button" class="admin-add-btn" id="admin-trafo-scan-btn" onclick="adminStartTrafoScan()" style="background:#422006;border-color:#c2410c;color:#fed7aa">⟳ Alle Trafos neu scrapen</button>
+
+    <div class="admin-section">Feedback & Feature-Wünsche</div>
+    <div id="admin-feedback-list"><div style="font-size:.8rem;color:#4a5268">⏳ Lade…</div></div>
+
+    <div style="display:flex;justify-content:flex-end;margin-top:18px">
+      <button onclick="closeAdminModal()" style="padding:7px 18px;background:#2e3450;color:#c8d6f0;border:none;border-radius:6px;cursor:pointer;font-size:.8rem">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Scan modal -->
+<div id="scan-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center">
+  <div id="scan-modal-box">
+    <h3>◈ Flächen- / Dach-Scan (NÖ)</h3>
+    <div class="scan-form-row">
+      <label>Objekttyp</label>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:.8rem;color:#c8d6f0">
+        <label style="cursor:pointer;display:flex;align-items:center;gap:5px"><input type="radio" name="sc-mode" value="open" checked/> Freiflächen (Industrie-/Gewerbezonen)</label>
+        <label style="cursor:pointer;display:flex;align-items:center;gap:5px"><input type="radio" name="sc-mode" value="roof"/> Dachflächen (Gewerbe/Industrie-Dächer)</label>
+      </div>
+    </div>
+    <div class="scan-form-row">
+      <label>Trafo-Status (mind. einer auswählen)</label>
+      <div class="scan-status-grid">
+        <label class="scan-status-cb"><input type="checkbox" name="sc-status" value="free"     checked><span style="width:8px;height:8px;border-radius:50%;background:#169000;display:inline-block"></span>Frei</label>
+        <label class="scan-status-cb"><input type="checkbox" name="sc-status" value="partial"       ><span style="width:8px;height:8px;border-radius:50%;background:#52ff00;display:inline-block"></span>Teilw.</label>
+        <label class="scan-status-cb"><input type="checkbox" name="sc-status" value="regional"      ><span style="width:8px;height:8px;border-radius:50%;background:#ffff00;display:inline-block"></span>Regional</label>
+        <label class="scan-status-cb"><input type="checkbox" name="sc-status" value="local"         ><span style="width:8px;height:8px;border-radius:50%;background:#febe04;display:inline-block"></span>Lokal</label>
+        <label class="scan-status-cb"><input type="checkbox" name="sc-status" value="full"          ><span style="width:8px;height:8px;border-radius:50%;background:#cc0000;display:inline-block"></span>Voll</label>
+      </div>
+    </div>
+    <div class="scan-form-row">
+      <label>Mindestfläche (m²)</label>
+      <input type="number" id="sc-min-area" value="3000" min="100" max="500000" step="100"/>
+    </div>
+    <div class="scan-form-row">
+      <label>Max. Distanz zum Trafo (m)</label>
+      <input type="number" id="sc-max-dist" value="200" min="50" max="2000" step="50"/>
+    </div>
+    <div class="scan-hint">
+      ⏳ Sucht in der Region aller passenden Trafos bei OpenStreetMap (Overpass). Dauert oft <b>30–90 Sek.</b><br>
+      <b>Dächer:</b> nur größere Gewerbe-/Industrie-Typen (nicht jedes Wohnhaus). Ergebnis <b>30 Min.</b> gecacht.
+    </div>
+    <div style="display:flex;gap:8px;margin-top:18px;justify-content:flex-end">
+      <button onclick="closeScanModal()" style="padding:7px 16px;background:#2e3450;color:#c8d6f0;border:none;border-radius:6px;cursor:pointer;font-size:.8rem">Abbrechen</button>
+      <button onclick="startScan()" id="scan-start-btn" style="padding:7px 18px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:.8rem;font-weight:700">◈ Scan starten</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bug modal -->
+<div id="bug-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#1a1d26;border:1px solid #2e3450;border-radius:10px;padding:22px;width:420px;max-width:95vw">
+    <h3 style="margin-bottom:4px;color:#c8d6f0;font-size:.93rem">💡 Feedback & Feature-Wünsche</h3>
+    <div style="font-size:.69rem;color:#4a5268;margin-bottom:14px">Bugs, Ideen oder Wünsche – alles willkommen. Cosimo sieht das im Admin-Panel.</div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:.8rem;color:#c8d6f0">
+        <input type="radio" name="fb-type" value="feature" checked> 💡 Feature-Wunsch
+      </label>
+      <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:.8rem;color:#c8d6f0">
+        <input type="radio" name="fb-type" value="bug"> 🐛 Bug
+      </label>
+      <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:.8rem;color:#c8d6f0">
+        <input type="radio" name="fb-type" value="other"> 💬 Sonstiges
+      </label>
+    </div>
+    <textarea id="bug-desc" rows="4" placeholder="Deine Nachricht…"
+      style="width:100%;background:#13161f;border:1px solid #2e3450;color:#c8d6f0;border-radius:6px;padding:8px;font-size:.79rem;resize:vertical;box-sizing:border-box"></textarea>
+    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
+      <button onclick="closeBugModal()" style="padding:6px 14px;background:#2e3450;color:#c8d6f0;border:none;border-radius:6px;cursor:pointer;font-size:.79rem">Abbrechen</button>
+      <button onclick="submitBugReport()" style="padding:6px 14px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:.79rem;font-weight:600">Absenden</button>
+    </div>
+  </div>
+</div>
+
+<!-- Abmelden / lokale Daten (Basic-Auth bleibt im Browser) -->
+<div id="logout-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#1a1d26;border:1px solid #2e3450;border-radius:10px;padding:22px;width:440px;max-width:95vw">
+    <h3 style="margin-bottom:6px;color:#c8d6f0;font-size:.93rem">Abmelden</h3>
+    <div style="font-size:.72rem;color:#a8b8d8;line-height:1.5;margin-bottom:14px">
+      Der Zugang läuft über <b>HTTP-Basic-Auth</b> (Nginx). Der Browser speichert Benutzername und Passwort für diese Website – es gibt dafür <b>keinen technischen „Logout“-Knopf</b> wie bei einer klassischen Web-Anmeldung.
+      <ul style="margin:10px 0 0 18px;padding:0">
+        <li style="margin-bottom:6px"><b>Gemeinsamer PC:</b> Seite nur im <b>Inkognito-/Privatfenster</b> nutzen, Fenster danach schließen.</li>
+        <li style="margin-bottom:6px"><b>Passwort im Browser entfernen:</b> Chrome/Edge: Einstellungen → <b>Passwörter</b> → Eintrag für diese Domain löschen. Firefox: Einstellungen → <b>Passwörter</b>.</li>
+        <li><b>Nur Karten-Ansicht zurücksetzen:</b> unten „Lokale App-Daten löschen“ (speicherte Zoom/Lage in diesem Browser).</li>
+      </ul>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end">
+      <button type="button" onclick="clearAppLocalStorage()" style="padding:6px 12px;background:#422006;border:1px solid #9a3412;color:#fed7aa;border-radius:6px;cursor:pointer;font-size:.76rem">Lokale App-Daten löschen</button>
+      <button type="button" onclick="closeLogoutModal()" style="padding:6px 14px;background:#2e3450;color:#c8d6f0;border:none;border-radius:6px;cursor:pointer;font-size:.79rem">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script>
+// ══ Config ════════════════════════════════════════════════════════════════════
+const STATUS = {
+  free:     { label:'Freie Kapazitäten',   color:'#169000', text:'#fff' },
+  partial:  { label:'Teilweise verfügbar', color:'#52ff00', text:'#333' },
+  regional: { label:'Regionale Engpässe',  color:'#ffff00', text:'#333' },
+  local:    { label:'Lokale Engpässe',     color:'#febe04', text:'#333' },
+  full:     { label:'Keine Kapazitäten',   color:'#cc0000', text:'#fff' },
+  unknown:  { label:'Unbekannt',           color:'#888',    text:'#fff' },
+};
+
+/** Alle CRM-Leads (Polygonfarbe „verworfen“, Scan-Filter, Projekte-Panel) */
+let _allProjects = [];
+
+// ══ Map ═══════════════════════════════════════════════════════════════════════
+const map = L.map('map', { zoomControl: true }).setView([48.2, 15.8], 8);
+const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  { attribution:'© OpenStreetMap', maxZoom:19 });
+const satLayer = L.tileLayer(
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  { attribution:'© Esri', maxZoom:19 });
+const streetsOverlay = L.layerGroup([
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom:19, opacity:0.8 }),
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom:19, opacity:0.9 }),
+]);
+satLayer.addTo(map);
+streetsOverlay.addTo(map);
+
+// Projektpins: über Freiflächen- (390) und Dach-Polygonen (420), aber unter tooltipPane (650)
+map.createPane('leadPane');
+map.getPane('leadPane').style.zIndex = 645;
+map.getPane('leadPane').style.pointerEvents = 'none'; // nur die Kreise fangen Klicks (visiblePainted)
+const _leadLayer = L.layerGroup().addTo(map);
+
+// Gemeinden unter Freiflächen / Dachflächen
+map.createPane('gemeindePane');
+map.getPane('gemeindePane').style.zIndex = 360;
+// Freiflächen unter Dachflächen (sonst fangen Industrie-Polygone Klicks auf Dächern ab)
+map.createPane('openAreaPane');
+map.getPane('openAreaPane').style.zIndex = 390;
+map.createPane('buildingPane');
+map.getPane('buildingPane').style.zIndex = 420;
+L.control.scale({ position:'bottomleft', metric:true, imperial:false, maxWidth:200 }).addTo(map);
+
+// ══ State ════════════════════════════════════════════════════════════════════
+const state = {
+  scans:         [],
+  trafosLayer:   null,
+  bezirkLayer:   null,
+  loadTimer:     null,
+  statusFilter:  new Set(['free']),
+  trafosEnabled: true,
+  gemeindeEnabled:  true,
+  gemeindeOpacity: 0.08,
+  gemeindeLineOnly: false,
+  gemeindeLayer:   null,
+};
+const GEM_LUE_STORAGE = 'noe.gem.ansicht';
+const GEM_COLOR     = '#5b6fa8';
+
+// ══ Spinner ══════════════════════════════════════════════════════════════════
+function showSpinner(v) { document.getElementById('spinner').classList.toggle('show', v); }
+/** API mit Session/Basic-Auth derselben Seite (Cookies + Browser-Basic) */
+function apiFetch(url, init) { return fetch(url, { ...init, credentials: 'same-origin' }); }
+
+// ══ Sidebar ══════════════════════════════════════════════════════════════════
+function openSidebar(title, html) {
+  document.getElementById('sb-title').textContent = title;
+  document.getElementById('sidebar-body').innerHTML = html;
+  document.getElementById('sidebar').classList.add('open');
+}
+function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); }
+document.getElementById('sb-close').addEventListener('click', closeSidebar);
+function sbRow(lbl, val) {
+  return `<div class="sb-row"><span class="lbl">${lbl}</span><span class="val">${val}</span></div>`;
+}
+
+// ══ Layer toggles ════════════════════════════════════════════════════════════
+function setLayer(sat) {
+  if (sat) {
+    map.removeLayer(osmLayer);
+    satLayer.addTo(map);
+    streetsOverlay.addTo(map);   // Straßen immer über Satellit
+  } else {
+    map.removeLayer(satLayer);
+    map.removeLayer(streetsOverlay);
+    osmLayer.addTo(map);
+  }
+  document.getElementById('btn-osm').classList.toggle('active', !sat);
+  document.getElementById('btn-sat').classList.toggle('active',  sat);
+}
+document.getElementById('btn-osm').addEventListener('click', () => setLayer(false));
+document.getElementById('btn-sat').addEventListener('click', () => setLayer(true));
+
+// ══ Umspannwerke (Trafos): Hauptbutton + Dropdown für Kapazitäts-Filter ═══════
+function setTrafoFilterDdOpen(open) {
+  const dd = document.getElementById('trafo-filter-dropdown');
+  const caret = document.getElementById('btn-trafos-caret');
+  if (!dd || !caret) return;
+  dd.classList.toggle('open', !!open);
+  caret.setAttribute('aria-expanded', open ? 'true' : 'false');
+  caret.classList.toggle('open', !!open);
+}
+function syncTrafoSplitActive() {
+  const on = state.trafosEnabled;
+  const main = document.getElementById('btn-trafos');
+  const caret = document.getElementById('btn-trafos-caret');
+  if (main) main.classList.toggle('active', on);
+  if (caret) caret.classList.toggle('active', on);
+}
+
+document.getElementById('btn-trafos').addEventListener('click', function() {
+  state.trafosEnabled = !state.trafosEnabled;
+  syncTrafoSplitActive();
+  setTrafoFilterDdOpen(false);
+  if (!state.trafosEnabled) {
+    if (state.trafosLayer) { map.removeLayer(state.trafosLayer); state.trafosLayer = null; }
+    if (state.bezirkLayer) { map.removeLayer(state.bezirkLayer); state.bezirkLayer = null; }
+  } else { loadTrafos(); }
+});
+document.getElementById('btn-trafos-caret').addEventListener('click', function(e) {
+  e.stopPropagation();
+  const dd = document.getElementById('trafo-filter-dropdown');
+  setTrafoFilterDdOpen(!dd.classList.contains('open'));
+});
+document.addEventListener('click', () => {
+  setTrafoFilterDdOpen(false);
+  setGemFilterDdOpen(false);
+});
+document.getElementById('trafo-filter-wrap').addEventListener('click', e => e.stopPropagation());
+
+// ══ Gemeinden (NÖ) ═══════════════════════════════════════════════════════════
+function setGemFilterDdOpen(open) {
+  const dd = document.getElementById('gem-filter-dropdown');
+  const caret = document.getElementById('btn-gemeinden-caret');
+  if (!dd || !caret) return;
+  dd.classList.toggle('open', !!open);
+  caret.setAttribute('aria-expanded', open ? 'true' : 'false');
+  caret.classList.toggle('open', !!open);
+}
+function saveGemeindeAnsicht() {
+  try {
+    localStorage.setItem(GEM_LUE_STORAGE, JSON.stringify({
+      opac: state.gemeindeOpacity,
+      line: state.gemeindeLineOnly,
+    }));
+  } catch {}
+}
+function loadGemeindeAnsicht() {
+  try {
+    const raw = localStorage.getItem(GEM_LUE_STORAGE);
+    if (!raw) return;
+    const o = JSON.parse(raw);
+    if (o.opac != null) {
+      state.gemeindeOpacity = o.opac;
+      const sl = document.getElementById('gem-opac');
+      if (sl) sl.value = String(Math.min(30, Math.max(0, Math.round(o.opac / 0.01))));
+    }
+    if (o.line != null) {
+      state.gemeindeLineOnly = !!o.line;
+      const cb = document.getElementById('gem-line-only');
+      if (cb) cb.checked = state.gemeindeLineOnly;
+    }
+    updateGemOpacLabel();
+  } catch {}
+}
+function updateGemOpacLabel() {
+  const el = document.getElementById('gem-opac-val');
+  if (el) el.textContent = state.gemeindeOpacity.toFixed(2).replace('.', ',');
+}
+function applyGemeindeStyle() {
+  if (!state.gemeindeLayer) return;
+  const fill = state.gemeindeLineOnly ? 0 : state.gemeindeOpacity;
+  state.gemeindeLayer.eachLayer(ly => {
+    if (ly && ly.setStyle) {
+      ly.setStyle({
+        color:       GEM_COLOR,
+        weight:      1.2,
+        opacity:     0.9,
+        fillColor:   GEM_COLOR,
+        fillOpacity: fill,
+      });
+    }
+  });
+}
+function syncGemeindeDblClickZoom() {
+  if (state.gemeindeEnabled) map.doubleClickZoom.disable();
+  else map.doubleClickZoom.enable();
+}
+function gemeindeStyleFeat() {
+  const fill = state.gemeindeLineOnly ? 0 : state.gemeindeOpacity;
+  return {
+    color: GEM_COLOR, weight: 1.2, opacity: 0.9,
+    fillColor: GEM_COLOR, fillOpacity: fill,
+  };
+}
+async function loadGemeindeLayer() {
+  if (state.gemeindeLayer) { map.removeLayer(state.gemeindeLayer); state.gemeindeLayer = null; }
+  if (!state.gemeindeEnabled) return;
+  showSpinner(true);
+  try {
+    const res = await fetch('/api/gemeinden');
+    if (!res.ok) throw new Error('Gemeinden');
+    const geo = await res.json();
+    const layer = L.geoJSON(geo, {
+      pane:     'gemeindePane',
+      style:    gemeindeStyleFeat,
+      onEachFeature(feat, lyr) {
+        const name = feat.properties && (feat.properties.g_name || feat.properties.g_id) || 'Gemeinde';
+        lyr.on('click', (e) => {
+          L.DomEvent.stopPropagation(e);
+          L.popup({ maxWidth: 240, className: 'gem-popup' })
+            .setLatLng(e.latlng)
+            .setContent('<b style="color:#c8d6f0">' + name.replace(/</g, '&lt;') + '</b>')
+            .openOn(map);
+        });
+      },
+    });
+    layer.addTo(map);
+    state.gemeindeLayer = layer;
+  } catch (e) {
+    console.error(e);
+  } finally { showSpinner(false); }
+  syncGemeindeDblClickZoom();
+}
+document.getElementById('btn-gemeinden').addEventListener('click', function() {
+  state.gemeindeEnabled = !state.gemeindeEnabled;
+  this.classList.toggle('active', state.gemeindeEnabled);
+  const caret = document.getElementById('btn-gemeinden-caret');
+  if (caret) caret.classList.toggle('active', state.gemeindeEnabled);
+  setGemFilterDdOpen(false);
+  if (state.gemeindeEnabled) loadGemeindeLayer();
+  else { if (state.gemeindeLayer) { map.removeLayer(state.gemeindeLayer); state.gemeindeLayer = null; } }
+  syncGemeindeDblClickZoom();
+});
+document.getElementById('btn-gemeinden-caret').addEventListener('click', (e) => {
+  e.stopPropagation();
+  const dd = document.getElementById('gem-filter-dropdown');
+  setGemFilterDdOpen(!dd.classList.contains('open'));
+});
+document.getElementById('gem-filter-wrap').addEventListener('click', e => e.stopPropagation());
+document.getElementById('gem-opac').addEventListener('input', function() {
+  state.gemeindeOpacity = parseInt(this.value, 10) * 0.01;
+  if (state.gemeindeOpacity < 0) state.gemeindeOpacity = 0;
+  if (state.gemeindeOpacity > 0.3) state.gemeindeOpacity = 0.3;
+  updateGemOpacLabel();
+  applyGemeindeStyle();
+  saveGemeindeAnsicht();
+});
+document.getElementById('gem-line-only').addEventListener('change', function() {
+  state.gemeindeLineOnly = this.checked;
+  applyGemeindeStyle();
+  saveGemeindeAnsicht();
+});
+map.on('dblclick', (e) => {
+  if (!state.gemeindeEnabled) return;
+  const { lat, lng } = e.latlng;
+  fetch('/api/gemeinde-at?lat=' + encodeURIComponent(lat) + '&lng=' + encodeURIComponent(lng))
+    .then(r => r.json())
+    .then((d) => {
+      if (d.west == null) return;
+      const b = L.latLngBounds([d.south, d.west], [d.north, d.east]);
+      map.fitBounds(b, { maxZoom: 14, padding: [24, 24] });
+    })
+    .catch(() => {});
+});
+loadGemeindeAnsicht();
+updateGemOpacLabel();
+if (state.gemeindeEnabled) loadGemeindeLayer();
+else syncGemeindeDblClickZoom();
+
+// ══ Status checkboxes ════════════════════════════════════════════════════════
+document.querySelectorAll('.status-cb').forEach(cb => {
+  cb.addEventListener('change', () => {
+    let sel = [...document.querySelectorAll('.status-cb:checked')].map(c => c.value);
+    if (!sel.length) {
+      document.querySelector('.status-cb[value="free"]').checked = true;
+      sel = ['free'];
+    }
+    state.statusFilter = new Set(sel);
+    if (state.trafosLayer)  { map.removeLayer(state.trafosLayer); state.trafosLayer = null; }
+    if (state.bezirkLayer)  { map.removeLayer(state.bezirkLayer); state.bezirkLayer = null; }
+    if (state.trafosEnabled) loadTrafos();
+    if (bldState.enabled) {
+      const key = bboxKey(map.getBounds());
+      if (bldState.cache.has(key)) renderBuildingPolygons(bldState.cache.get(key));
+    }
+    if (oaState.enabled) {
+      const key = bboxKey(map.getBounds());
+      if (oaState.cache.has(key)) renderOpenAreaPolygons(oaState.cache.get(key));
+    }
+  });
+});
+
+// ══ Pie SVG ══════════════════════════════════════════════════════════════════
+function makePieSvg(counts, size) {
+  const total = Object.values(counts).reduce((s, v) => s + v, 0);
+  if (!total) return '';
+  const r = size / 2 - 2, cx = size / 2, cy = size / 2;
+  const nonZero = ['free','partial','regional','local','full'].filter(k => counts[k] > 0);
+  if (nonZero.length === 1) {
+    const color = STATUS[nonZero[0]]?.color || '#888';
+    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="border-radius:50%;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))"><circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="1.5"/></svg>`;
+  }
+  let startAngle = -Math.PI / 2, paths = '';
+  for (const key of nonZero) {
+    const n = counts[key], angle = (n / total) * 2 * Math.PI;
+    const x1 = cx + r * Math.cos(startAngle), y1 = cy + r * Math.sin(startAngle);
+    const x2 = cx + r * Math.cos(startAngle + angle), y2 = cy + r * Math.sin(startAngle + angle);
+    paths += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${angle > Math.PI ? 1 : 0},1 ${x2},${y2} Z" fill="${STATUS[key].color}"/>`;
+    startAngle += angle;
+  }
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="border-radius:50%;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))">${paths}<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="1.5"/></svg>`;
+}
+
+// ══ Trafo icons ══════════════════════════════════════════════════════════════
+function trafoIcon(status) {
+  const cfg = STATUS[status] || STATUS.unknown;
+  return L.divIcon({
+    html: `<div style="width:14px;height:14px;border-radius:50%;background:${cfg.color};border:2px solid rgba(0,0,0,.3)"></div>`,
+    className:'', iconSize:[14,14], iconAnchor:[7,7],
+  });
+}
+function clusterIcon(cluster) {
+  const markers = cluster.getAllChildMarkers();
+  const counts = { free:0, partial:0, regional:0, local:0, full:0 };
+  markers.forEach(m => { if (m.options.trafoStatus) counts[m.options.trafoStatus]++; });
+  const total = markers.length, size = total < 20 ? 40 : total < 100 ? 56 : 72;
+  const svg = makePieSvg(counts, size);
+  return L.divIcon({
+    html: `<div style="position:relative;width:${size}px;height:${size}px">${svg}<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${size > 50 ? '.8rem' : '.65rem'};font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8)">${total}</div></div>`,
+    className:'', iconSize:[size,size], iconAnchor:[size/2,size/2],
+  });
+}
+
+// ══ Bezirk layer ═════════════════════════════════════════════════════════════
+function renderBezirkLayer(bezirke) {
+  if (state.bezirkLayer) { map.removeLayer(state.bezirkLayer); state.bezirkLayer = null; }
+  const layer = L.layerGroup();
+  for (const b of bezirke) {
+    if (!b.total) continue;
+    const size = Math.max(40, Math.min(90, 30 + Math.sqrt(b.total) * 2));
+    const svg  = makePieSvg(b.counts, size);
+    const icon = L.divIcon({
+      html: `<div style="position:relative;width:${size}px;height:${size}px">${svg}<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.9)">${b.total}</div></div>`,
+      className:'', iconSize:[size,size], iconAnchor:[size/2,size/2],
+    });
+    L.marker([b.lat, b.lng], { icon })
+      .bindTooltip(`<b>${b.name}</b><br>Frei: ${b.counts.free||0} | Teilw.: ${b.counts.partial||0} | Regional: ${b.counts.regional||0} | Lokal: ${b.counts.local||0} | Voll: ${b.counts.full||0}`, { sticky:true })
+      .on('click', () => map.flyTo([b.lat, b.lng], 10, { duration:0.8 }))
+      .addTo(layer);
+  }
+  layer.addTo(map);
+  state.bezirkLayer = layer;
+}
+
+// ══ Load trafos ══════════════════════════════════════════════════════════════
+async function loadTrafos() {
+  if (!state.trafosEnabled) return;
+  const zoom = Math.floor(map.getZoom());
+  const b    = map.getBounds();
+  const params = new URLSearchParams({
+    north: b.getNorth(), south: b.getSouth(),
+    east: b.getEast(), west: b.getWest(), zoom,
+  });
+  showSpinner(true);
+  try {
+    const res  = await fetch(`/api/trafos?${params}`);
+    const data = await res.json();
+    if (state.trafosLayer) { map.removeLayer(state.trafosLayer); state.trafosLayer = null; }
+    if (state.bezirkLayer) { map.removeLayer(state.bezirkLayer); state.bezirkLayer = null; }
+
+    applyNetScanMetaFromData(data);
+
+    if (data.mode === 'bezirk') {
+      renderBezirkLayer(data.bezirke);
+      return;
+    }
+
+    const mcg = L.markerClusterGroup({
+      iconCreateFunction: clusterIcon,
+      disableClusteringAtZoom: 12,
+      maxClusterRadius: zoom >= 11 ? 40 : 60,
+    });
+    let added = 0;
+    (data.trafos || []).forEach(t => {
+      if (!isFinite(t.lat) || !isFinite(t.lng)) return;
+      if (!state.statusFilter.has(t.status)) return;
+      const marker = L.marker([t.lat, t.lng], { icon: trafoIcon(t.status), trafoStatus: t.status });
+      marker.on('click', () => showTrafoSidebar(t));
+      mcg.addLayer(marker);
+      added++;
+    });
+    mcg.addTo(map);
+    state.trafosLayer = mcg;
+  } catch(e) { console.error('[loadTrafos]', e); }
+  finally { showSpinner(false); }
+}
+
+function showTrafoSidebar(t) {
+  const cfg = STATUS[t.status] || STATUS.unknown;
+  let html = `<div style="margin-bottom:10px"><span class="status-badge" style="background:${cfg.color};color:${cfg.text}">${cfg.label}</span></div>`;
+  html += sbRow('EVN ID',      t.tst_id ? `TST-${t.tst_id}` : t.id || '—');
+  html += sbRow('Status',      cfg.label);
+  html += sbRow('Gesperrt',    t.gesperrt != null ? t.gesperrt : '—');
+  html += sbRow('Koordinaten', `${t.lat?.toFixed(5)}, ${t.lng?.toFixed(5)}`);
+  html += sbRow('Scan',        t.scanned_at ? new Date(t.scanned_at).toLocaleDateString('de-DE') : '—');
+  openSidebar(t.name || t.id || 'Trafo', html);
+}
+
+// ══ NÖ zoom-out button (Leaflet custom control) ═══════════════════════════════
+const NOE_BOUNDS = [[47.73, 14.45], [48.98, 17.08]];  // Niederösterreich
+
+L.Control.NoeHome = L.Control.extend({
+  options: { position: 'topleft' },
+  onAdd(map) {
+    const btn = L.DomUtil.create('a', 'leaflet-bar leaflet-control');
+    btn.href  = '#';
+    btn.title = 'Niederösterreich – Gesamtübersicht';
+    btn.role  = 'button';
+    btn.style.cssText = 'display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#555;width:30px;height:30px;line-height:30px;text-align:center;text-decoration:none;background:#fff';
+    btn.innerHTML = '🗺';
+    L.DomEvent.on(btn, 'click', (e) => {
+      L.DomEvent.preventDefault(e);
+      map.fitBounds(NOE_BOUNDS, { animate: true, duration: 0.5, padding: [10, 10] });
+    });
+    return btn;
+  },
+});
+new L.Control.NoeHome().addTo(map);
+
+// ══ Map state persistence ════════════════════════════════════════════════════
+const MAP_STATE_KEY = 'roof_map_state';
+function saveMapState() {
+  const c = map.getCenter();
+  localStorage.setItem(MAP_STATE_KEY, JSON.stringify({ lat: c.lat, lng: c.lng, zoom: map.getZoom() }));
+}
+function loadMapState() {
+  try { return JSON.parse(localStorage.getItem(MAP_STATE_KEY)); } catch { return null; }
+}
+
+// ══ Map refresh ══════════════════════════════════════════════════════════════
+function scheduleRefresh() {
+  clearTimeout(state.loadTimer);
+  state.loadTimer = setTimeout(refreshMap, 600);
+}
+map.on('moveend zoomend', () => { saveMapState(); scheduleRefresh(); });
+
+async function refreshMap() {
+  const p1 = state.trafosEnabled ? loadTrafos()            : Promise.resolve();
+  const p2 = bldState.enabled    ? loadBuildingsViewport() : Promise.resolve();
+  const p3 = oaState.enabled     ? loadOpenAreasViewport() : Promise.resolve();
+  await Promise.all([p1, p2, p3]);
+}
+
+// ══ Search (Nominatim) ═══════════════════════════════════════════════════════
+let searchMarker = null, searchTimer = null;
+const searchInput = document.getElementById('search-input');
+const searchClear = document.getElementById('search-clear');
+const searchSugg  = document.getElementById('search-suggestions');
+
+searchInput.addEventListener('input', function() {
+  const q = this.value.trim();
+  searchClear.style.display = q ? '' : 'none';
+  clearTimeout(searchTimer);
+  if (q.length < 3) { hideSuggestions(); return; }
+  searchTimer = setTimeout(() => doSearch(q), 400);
+});
+searchInput.addEventListener('keydown', e => { if (e.key === 'Escape') clearSearch(); });
+document.addEventListener('click', e => { if (!e.target.closest('#search-wrap')) hideSuggestions(); });
+
+async function doSearch(q) {
+  try {
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&countrycodes=at&limit=6&accept-language=de`,
+      { headers: { 'User-Agent': 'Noortec-TrafoDash/1.0' } }
+    );
+    showSuggestions(await r.json());
+  } catch { hideSuggestions(); }
+}
+function showSuggestions(results) {
+  searchSugg.innerHTML = '';
+  if (!results.length) { hideSuggestions(); return; }
+  results.forEach(r => {
+    const el = document.createElement('div');
+    el.className = 'suggestion-item';
+    el.textContent = r.display_name.split(',').slice(0, 3).join(', ');
+    el.addEventListener('mousedown', ev => {
+      ev.preventDefault();
+      map.flyTo([+r.lat, +r.lon], 14, { duration: 1 });
+      if (searchMarker) map.removeLayer(searchMarker);
+      searchMarker = L.marker([+r.lat, +r.lon]).addTo(map)
+        .bindPopup(r.display_name.split(',')[0]).openPopup();
+      setTimeout(() => { if (searchMarker) { map.removeLayer(searchMarker); searchMarker = null; } }, 8000);
+      searchInput.value = r.display_name.split(',').slice(0, 2).join(', ');
+      hideSuggestions();
+    });
+    searchSugg.appendChild(el);
+  });
+  searchSugg.style.display = 'block';
+}
+function hideSuggestions() { searchSugg.style.display = 'none'; }
+function clearSearch() {
+  searchInput.value = '';
+  searchClear.style.display = 'none';
+  hideSuggestions();
+  if (searchMarker) { map.removeLayer(searchMarker); searchMarker = null; }
+}
+
+// ══ BUILDING POLYGONS — ON-DEMAND ════════════════════════════════════════════
+const bldState = { enabled: true,  layer: null, cache: new Map(), minArea: 500, maxDist: 200 };
+
+// ══ OPEN AREAS — ON-DEMAND ═══════════════════════════════════════════════════
+const oaState  = { enabled: true,  layer: null, cache: new Map(), minArea: 500, maxDist: 200 };
+
+/** CRM „verworfen“: dunkelrote Flächenfarbe — überlagert Trafo-Grün auf der Karte */
+const VERWORFEN_MAP_STROKE = '#450a0a';
+const VERWORFEN_MAP_FILL   = '#7f1d1d';
+
+function leadStageForOsm(osm_id) {
+  if (osm_id == null) return null;
+  const k = String(osm_id).trim();
+  const lead = _allProjects.find(l => String(l.osm_id).trim() === k);
+  return lead ? lead.stage : null;
+}
+
+function polygonStyleForOsm(nearest_trafo_status, osm_id, kind) {
+  if (leadStageForOsm(osm_id) === 'verworfen') {
+    return {
+      color: VERWORFEN_MAP_STROKE,
+      weight: kind === 'open' ? 2.5 : 2,
+      dashArray: kind === 'open' ? '6 4' : null,
+      fillColor: VERWORFEN_MAP_FILL,
+      fillOpacity: kind === 'open' ? 0.32 : 0.55,
+    };
+  }
+  const cfg = STATUS[nearest_trafo_status] || STATUS.unknown;
+  return {
+    color: cfg.color,
+    weight: kind === 'open' ? 2.5 : 2,
+    dashArray: kind === 'open' ? '6 4' : null,
+    fillColor: cfg.color,
+    fillOpacity: kind === 'open' ? 0.18 : 0.5,
+  };
+}
+
+function refreshLeadDependentMapLayers() {
+  const sn = snapBounds(map.getBounds());
+  const key = snapKey(sn);
+  if (bldState.enabled && bldState.cache.has(key)) renderBuildingPolygons(bldState.cache.get(key));
+  if (oaState.enabled && oaState.cache.has(key)) renderOpenAreaPolygons(oaState.cache.get(key));
+}
+
+// Hatch-Pattern für Freiflächen (diagonale Linien über der Füllfarbe)
+function makeHatchPattern(color) {
+  const id = 'hatch-' + color.replace('#','');
+  if (!document.getElementById(id)) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.style.cssText = 'position:absolute;width:0;height:0';
+    svg.innerHTML = `<defs><pattern id="${id}" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="0" y1="0" x2="0" y2="8" stroke="${color}" stroke-width="2.5" stroke-opacity="0.7"/>
+    </pattern></defs>`;
+    document.body.appendChild(svg);
+  }
+  return `url(#${id})`;
+}
+
+// Snap bbox to 0.1° grid → same tile for nearby views → much higher cache hit rate
+const SNAP = 0.1;
+function snapBounds(b) {
+  return {
+    s: Math.floor(b.getSouth() / SNAP) * SNAP,
+    w: Math.floor(b.getWest()  / SNAP) * SNAP,
+    n: Math.ceil(b.getNorth()  / SNAP) * SNAP,
+    e: Math.ceil(b.getEast()   / SNAP) * SNAP,
+  };
+}
+function snapKey(sn) {
+  return [sn.n, sn.s, sn.e, sn.w].map(v => v.toFixed(3)).join(',');
+}
+// Legacy alias kept for any remaining callers that pass a Leaflet bounds object
+function bboxKey(b) { const sn = snapBounds(b); return snapKey(sn); }
+function bldBboxKey(b) { return bboxKey(b); }
+function areaToKwp(m2) {
+  return Math.round(Math.floor(m2 * 0.75 / 2.613) * 0.46);
+}
+
+let _bldAbort = null;
+
+async function loadBuildingsViewport() {
+  if (!bldState.enabled) return;
+  const zoom = Math.floor(map.getZoom());
+  const msg  = document.getElementById('bld-zoom-msg');
+  if (zoom < 13) {
+    msg.style.display = 'block';
+    if (bldState.layer) { map.removeLayer(bldState.layer); bldState.layer = null; }
+    return;
+  }
+  msg.style.display = 'none';
+  const sn  = snapBounds(map.getBounds());
+  const key = snapKey(sn);
+  // Cache hit → instant render, no network needed
+  if (bldState.cache.has(key)) { renderBuildingPolygons(bldState.cache.get(key)); return; }
+  // Cancel any previous in-flight request for a different tile
+  if (_bldAbort) { _bldAbort.abort(); }
+  const ctrl = new AbortController();
+  _bldAbort  = ctrl;
+  showSpinner(true);
+  try {
+    const params = new URLSearchParams({
+      north: sn.n.toFixed(5), south: sn.s.toFixed(5),
+      east:  sn.e.toFixed(5), west:  sn.w.toFixed(5),
+      min_area: 100, max_dist: bldState.maxDist,
+    });
+    const r = await fetch(`/api/buildings?${params}`, { signal: ctrl.signal });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    bldState.cache.set(key, data.buildings || []);
+    renderBuildingPolygons(data.buildings || []);
+  } catch(e) {
+    if (e.name !== 'AbortError') console.error('[buildings]', e.message);
+  } finally {
+    if (_bldAbort === ctrl) { _bldAbort = null; showSpinner(false); }
+  }
+}
+
+function renderBuildingPolygons(buildings) {
+  if (bldState.layer) { map.removeLayer(bldState.layer); bldState.layer = null; }
+  if (!bldState.enabled) return;
+  const filtered = buildings.filter(b =>
+    b.roof_area_m2 >= bldState.minArea &&
+    state.statusFilter.has(b.nearest_trafo_status)
+  );
+  document.getElementById('stat-buildings').textContent = filtered.length.toLocaleString('de-AT');
+  if (!filtered.length) { document.getElementById('stat-mwp').textContent = '0'; return; }
+
+  bldState.layer = L.layerGroup();
+  let totKwp = 0;
+  for (const b of filtered) {
+    if (!b.polygon?.length) continue;
+    const ps = polygonStyleForOsm(b.nearest_trafo_status, b.osm_id, 'roof');
+    const polyOpts = {
+      pane: 'buildingPane',
+      color: ps.color,
+      weight: ps.weight,
+      fillColor: ps.fillColor,
+      fillOpacity: ps.fillOpacity,
+    };
+    if (ps.dashArray) polyOpts.dashArray = ps.dashArray;
+    const poly = L.polygon(b.polygon, polyOpts);
+    poly.on('click', ev => { L.DomEvent.stopPropagation(ev); showBuildingSidebar(b); });
+    bldState.layer.addLayer(poly);
+    totKwp += b.kwp || 0;
+  }
+  bldState.layer.addTo(map);
+  document.getElementById('stat-mwp').textContent = (totKwp / 1000).toFixed(1) + ' MWp';
+  if (oaState.enabled) updateCombinedMwp();
+}
+
+// ── Open areas load + render ──────────────────────────────────────────────────
+let _oaAbort = null;
+
+async function loadOpenAreasViewport() {
+  if (!oaState.enabled) return;
+  const zoom = Math.floor(map.getZoom());
+  const msg  = document.getElementById('bld-zoom-msg');
+  if (zoom < 13) {
+    msg.style.display = 'block';
+    if (oaState.layer) { map.removeLayer(oaState.layer); oaState.layer = null; }
+    updateOaStats(0, 0);
+    return;
+  }
+  msg.style.display = 'none';
+  const sn  = snapBounds(map.getBounds());
+  const key = snapKey(sn);
+  if (oaState.cache.has(key)) { renderOpenAreaPolygons(oaState.cache.get(key)); return; }
+  if (_oaAbort) { _oaAbort.abort(); }
+  const ctrl = new AbortController();
+  _oaAbort   = ctrl;
+  showSpinner(true);
+  try {
+    const params = new URLSearchParams({
+      north: sn.n.toFixed(5), south: sn.s.toFixed(5),
+      east:  sn.e.toFixed(5), west:  sn.w.toFixed(5),
+      min_area: 100, max_dist: oaState.maxDist,
+    });
+    const r = await fetch(`/api/open-areas?${params}`, { signal: ctrl.signal });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const data = await r.json();
+    oaState.cache.set(key, data.areas || []);
+    renderOpenAreaPolygons(data.areas || []);
+  } catch(e) {
+    if (e.name !== 'AbortError') console.error('[open-areas]', e.message);
+  } finally {
+    if (_oaAbort === ctrl) { _oaAbort = null; showSpinner(false); }
+  }
+}
+
+const OA_LANDUSE_LABEL = {
+  industrial:   'Industriegebiet',
+  commercial:   'Gewerbegebiet',
+  retail:       'Einzelhandelsgebiet',
+  depot:        'Lagerplatz',
+  brownfield:   'Brachfläche',
+  landfill:     'Deponie / Aufschüttung',
+  construction: 'Baugebiet (in Entwicklung)',
+};
+
+function renderOpenAreaPolygons(areas) {
+  if (oaState.layer) { map.removeLayer(oaState.layer); oaState.layer = null; }
+  if (!oaState.enabled) return;
+  const filtered = areas.filter(a =>
+    a.area_m2 >= oaState.minArea &&
+    state.statusFilter.has(a.nearest_trafo_status)
+  );
+  updateOaStats(filtered.length, filtered.reduce((s, a) => s + (a.kwp || 0), 0));
+  if (!filtered.length) return;
+
+  oaState.layer = L.layerGroup();
+  for (const a of filtered) {
+    if (!a.polygon?.length) continue;
+    const ps = polygonStyleForOsm(a.nearest_trafo_status, a.osm_id, 'open');
+    const polyOpts = {
+      pane:        'openAreaPane',
+      color:       ps.color,
+      weight:      ps.weight,
+      fillColor:   ps.fillColor,
+      fillOpacity: ps.fillOpacity,
+    };
+    if (ps.dashArray) polyOpts.dashArray = ps.dashArray;
+    const poly  = L.polygon(a.polygon, polyOpts);
+    poly.on('click', ev => { L.DomEvent.stopPropagation(ev); showOpenAreaSidebar(a); });
+    oaState.layer.addLayer(poly);
+  }
+  oaState.layer.addTo(map);
+}
+
+function updateOaStats(count, kwpTotal) {
+  const el   = document.getElementById('stat-open-areas');
+  const lbl  = document.getElementById('stat-oa-label');
+  const sep  = document.getElementById('sep-oa');
+  if (oaState.enabled) {
+    el.textContent  = count.toLocaleString('de-AT');
+    el.style.display = lbl.style.display = sep.style.display = '';
+    // Combine MWp if buildings also active
+    updateCombinedMwp();
+  } else {
+    el.style.display = lbl.style.display = sep.style.display = 'none';
+  }
+}
+
+function updateCombinedMwp() {
+  // Sum kwp from both layers
+  let total = 0;
+  if (bldState.layer) {
+    bldState.layer.getLayers?.().forEach(l => { /* kwp stored on poly? nope → recompute from cache */ });
+  }
+  // Simpler: sum from last rendered caches
+  const bndKey = bboxKey(map.getBounds());
+  const bArr   = bldState.cache.get(bndKey) || [];
+  const oArr   = oaState.cache.get(bndKey)  || [];
+  const bKwp   = bArr.filter(b => b.roof_area_m2 >= bldState.minArea && state.statusFilter.has(b.nearest_trafo_status))
+                     .reduce((s, b) => s + (b.kwp || 0), 0);
+  const oKwp   = oArr.filter(a => a.area_m2 >= oaState.minArea && state.statusFilter.has(a.nearest_trafo_status))
+                     .reduce((s, a) => s + (a.kwp || 0), 0);
+  document.getElementById('stat-mwp').textContent = ((bKwp + oKwp) / 1000).toFixed(1) + ' MWp';
+}
+
+function showOpenAreaSidebar(a) {
+  // _currentBuilding-kompatibles Objekt setzen (für searchOwner + saveLead)
+  _currentBuilding = {
+    lat: a.lat, lng: a.lng,
+    type: 'open_area',
+    osm_id:               a.osm_id,
+    address:              a.name || null,
+    roof_area_m2:         a.area_m2,
+    usable_area_m2:       a.usable_area,
+    modules:              a.modules,
+    kwp:                  a.kwp,
+    nearest_trafo_status: a.nearest_trafo_status,
+    nearest_trafo_id:     a.nearest_trafo_id,
+    nearest_trafo_tst_id: a.nearest_trafo_tst_id,
+    distance_to_trafo_m:  a.distance_to_trafo_m,
+    atlas_url:            a.atlas_url,
+    polygon:              a.polygon,
+  };
+  _currentKataster = null;
+  _currentOwner    = null;
+
+  const cfg    = STATUS[a.nearest_trafo_status] || STATUS.unknown;
+  const luLbl  = OA_LANDUSE_LABEL[a.landuse] || a.landuse;
+  const uid    = Date.now();
+  const katId  = `kat-oa-${uid}`;
+  const ownerId   = `owner-oa-${uid}`;
+
+  let html = `<div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+    <span class="status-badge" style="background:${cfg.color};color:${cfg.text}">${cfg.label}</span>
+    <span class="status-badge" style="background:#2a2f42;color:#8892aa;font-size:.65rem">◆ ${luLbl}</span>
+    <span id="sb-crm-stage-badge" style="display:none"></span>
+  </div>`;
+
+  // ── Projekt (CRM) – ganz oben ──
+  html += `<div style="font-size:.75rem;font-weight:700;color:#c8d6f0;margin-bottom:6px">📋 Projekt</div>
+    <div id="crm-body"></div><hr class="crm-divider">`;
+
+  // ── Kontakt (wird automatisch geladen) ──
+  html += sbSection('Kontakt');
+  html += `<div id="${ownerId}"><div style="font-size:.73rem;color:#8892aa;padding:4px 0">⏳ Kontakte werden geladen…</div></div>`;
+
+  // ── Fläche ──
+  html += sbSection('Freifläche');
+  html += sbRow('Typ',               luLbl);
+  html += sbRow('Gesamtfläche',      `<b>${a.area_m2.toLocaleString('de-AT')} m²</b>`);
+  html += sbRow('Nutzbare PV-Fläche',`${a.usable_area.toLocaleString('de-AT')} m² <small style="color:#8892aa">(75 %)</small>`);
+  html += sbRow('Module',            `${a.modules.toLocaleString('de-AT')} Stk <small style="color:#8892aa">(460 W)</small>`);
+  html += sbRow('Leistung',          `<b>${a.kwp} kWp</b>`);
+  html += sbRow('Ertrag/Jahr',       `~${(a.kwh_year / 1000).toFixed(0)} MWh`);
+
+  // ── Trafo ──
+  html += sbSection('Trafo');
+  html += sbRow('Abstand', `${a.distance_to_trafo_m} m`);
+  html += sbRow('Status',  `<span class="status-badge" style="background:${cfg.color};color:${cfg.text};font-size:.65rem">${cfg.label}</span>`);
+  html += sbRow('Trafo-ID', a.nearest_trafo_tst_id ? `TST-${a.nearest_trafo_tst_id}` : a.nearest_trafo_id || '—');
+
+  // ── Kataster ──
+  html += sbSection('Kataster');
+  html += `<div id="${katId}" style="font-size:.76rem;color:#8892aa;padding:4px 0">⏳ Lade…</div>`;
+  html += `<button class="btn-action btn-doris" id="bev-btn-${katId}" style="background:#1e3a5f;display:none" onclick="window.open(this.dataset.url,'_blank')">📋 BEV Kataster öffnen</button>`;
+
+  // ── Aktionen ──
+  html += sbSection('Aktionen');
+  html += `<button class="btn-action btn-doris" onclick="window.open('${a.atlas_url}','_blank')">🗺️ NÖ Atlas öffnen</button>`;
+
+  openSidebar(`${a.area_m2.toLocaleString('de-AT')} m² — ${a.kwp} kWp`, html);
+  loadKataster(a.lat, a.lng, katId);
+  searchOwner(ownerId);
+  openLeadSection(a.osm_id, { type: 'open_area', lat: a.lat, lng: a.lng,
+    name: a.name, address: a.name || null, area_m2: a.area_m2, kwp: a.kwp,
+    nearest_trafo_status: a.nearest_trafo_status, distance_to_trafo_m: a.distance_to_trafo_m,
+    osm_id: a.osm_id, polygon: a.polygon, atlas_url: a.atlas_url,
+    landuse: a.landuse, usable_area: a.usable_area, modules: a.modules, kwh_year: a.kwh_year,
+    nearest_trafo_id: a.nearest_trafo_id, nearest_trafo_tst_id: a.nearest_trafo_tst_id,
+  });
+}
+
+// ── Current building state for lead saving ────────────────────────────────────
+let _currentBuilding = null, _currentKataster = null, _currentOwner = null;
+
+function sbSection(title) {
+  return `<div style="font-size:.68rem;font-weight:700;color:#4a5268;text-transform:uppercase;letter-spacing:.06em;margin:10px 0 4px;padding-top:6px;border-top:1px solid #1e2235">${title}</div>`;
+}
+
+function showBuildingSidebar(b) {
+  _currentBuilding = Object.assign({ type: 'building' }, b);
+  _currentKataster = null;
+  _currentOwner    = null;
+
+  const cfg     = STATUS[b.nearest_trafo_status] || STATUS.unknown;
+  const area    = b.roof_area_m2 || 0;
+  const usable  = b.usable_area_m2 != null ? b.usable_area_m2 : Math.round(area * 0.75);
+  const modules = b.modules       != null ? b.modules        : Math.floor(usable / 2.613);
+  const kwp     = b.kwp           != null ? b.kwp            : Math.round(modules * 0.46 * 10) / 10;
+  const atlasUrl = b.atlas_url ||
+    `https://atlas.noe.gv.at/atlas/portal/noe-atlas/map/Planung%20und%20Kataster/Grundst%C3%BCcke?center=${b.lng},${b.lat}&level=18`;
+
+  const uid       = Date.now();
+  const katId     = `kat-${uid}`;
+  const ownerId   = `owner-${uid}`;
+  const leadBtnId = `lead-btn-${uid}`;
+
+  let html = `<div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+    <span class="status-badge" style="background:${cfg.color};color:${cfg.text}">${cfg.label}</span>
+    <span id="sb-crm-stage-badge" style="display:none"></span>
+  </div>`;
+
+  // ── Projekt (CRM) – ganz oben ──
+  html += `<div style="font-size:.75rem;font-weight:700;color:#c8d6f0;margin-bottom:6px">📋 Projekt</div>
+    <div id="crm-body"></div><hr class="crm-divider">`;
+
+  // ── Kontakt (wird automatisch geladen) ──
+  html += sbSection('Kontakt');
+  html += `<div id="${ownerId}"><div style="font-size:.73rem;color:#8892aa;padding:4px 0">⏳ Kontakte werden geladen…</div></div>`;
+
+  // ── Gebäude ──
+  html += sbSection('Gebäude');
+  if (b.address) {
+    const shortAddr = b.address.split(',').slice(0,2).join(', ');
+    html += sbRow('Adresse', `<span style="font-size:.72rem;word-break:break-word;text-align:right;max-width:170px;display:inline-block">${shortAddr}</span>`);
+  }
+  html += sbRow('Dachfläche',      `<b>${area.toLocaleString('de-AT')} m²</b>`);
+  html += sbRow('Nutzbare Fläche', `${usable.toLocaleString('de-AT')} m² <small style="color:#8892aa">(75%)</small>`);
+  html += sbRow('Module',          `${modules.toLocaleString('de-AT')} Stk <small style="color:#8892aa">(460 W)</small>`);
+  html += sbRow('Leistung',        `<b>${kwp} kWp</b>`);
+  html += sbRow('Trafo-Abstand',   `${b.distance_to_trafo_m} m`);
+  html += sbRow('Trafo-Status',    `<span class="status-badge" style="background:${cfg.color};color:${cfg.text};font-size:.65rem">${cfg.label}</span>`);
+  html += sbRow('Trafo-ID',        b.nearest_trafo_tst_id ? `TST-${b.nearest_trafo_tst_id}` : b.nearest_trafo_id || '—');
+
+  // ── Kataster (async) ──
+  html += sbSection('Kataster');
+  html += `<div id="${katId}" style="font-size:.76rem;color:#8892aa;padding:4px 0">⏳ Lade Katasterdaten…</div>`;
+
+  // ── Aktionen ──
+  html += sbSection('Aktionen');
+  html += `<button class="btn-action btn-doris" onclick="window.open('${atlasUrl}','_blank')">🗺️ NÖ Atlas öffnen</button>`;
+  html += `<button class="btn-action btn-doris" id="bev-btn-${katId}" style="background:#1e3a5f;display:none" onclick="window.open(this.dataset.url,'_blank')">📋 BEV Kataster öffnen</button>`;
+
+  openSidebar(`${area.toLocaleString('de-AT')} m² — ${kwp} kWp`, html);
+  if (measureMode === 'click') showMeasureResult(`Fläche: ${area.toLocaleString('de-AT')} m² ≈ ${kwp} kWp möglich`);
+  loadKataster(b.lat, b.lng, katId);
+  searchOwner(ownerId);
+  openLeadSection(b.osm_id, { type: 'building', lat: b.lat, lng: b.lng,
+    address: b.address || null, area_m2: b.roof_area_m2, kwp: b.kwp,
+    nearest_trafo_status: b.nearest_trafo_status, distance_to_trafo_m: b.distance_to_trafo_m,
+    osm_id: b.osm_id, polygon: b.polygon, atlas_url: atlasUrl,
+    building_type: b.building_type, roof_area_m2: b.roof_area_m2,
+    usable_area: usable, modules, kwh_year: b.kwh_year,
+    nearest_trafo_id: b.nearest_trafo_id, nearest_trafo_tst_id: b.nearest_trafo_tst_id,
+  });
+}
+
+async function loadKataster(lat, lng, katId) {
+  const el = document.getElementById(katId);
+  if (!el) return;
+  try {
+    const r = await fetch(`/api/kataster?lat=${lat}&lng=${lng}`);
+    const d = await r.json();
+    if (!d) { el.textContent = 'Kataster nicht gefunden'; return; }
+    _currentKataster = d;
+    const gkz   = d.gkz   || d.KG_NR   || '—';
+    const kg    = d.kg     || d.KG_NAME || '—';
+    const gstnr = d.gstnr  || d.GST_NR  || '—';
+    const ez    = d.ez     || d.EZ      || '—';
+    let rows = '';
+    rows += sbRow('KG-Nummer',         gkz);
+    rows += sbRow('Katastralgemeinde', kg);
+    rows += sbRow('Grundstück-Nr.',    gstnr);
+    rows += sbRow('Einlagezahl',       ez);
+    el.innerHTML = rows;
+    const bevBtn = document.getElementById(`bev-btn-${katId}`);
+    if (bevBtn && gkz !== '—' && gstnr !== '—') {
+      bevBtn.dataset.url = `https://kataster.bev.gv.at/?gkz=${gkz}&gstnr=${encodeURIComponent(gstnr)}`;
+      bevBtn.style.display = 'block';
+    }
+  } catch { if (el) el.textContent = 'Kataster nicht verfügbar'; }
+}
+
+
+async function searchOwner(ownerId) {
+  const b  = _currentBuilding;
+  if (!b) return;
+  const el = document.getElementById(ownerId);
+  if (!el) return;
+  el.innerHTML = '<div style="font-size:.73rem;color:#8892aa;padding:4px 0">⏳ Kontakte werden geladen…</div>';
+  try {
+    const params = new URLSearchParams({ lat: b.lat, lng: b.lng, address: b.address || '' });
+    const r = await fetch(`/api/owner-search?${params}`);
+    const d = await r.json();
+    const companies = d.companies || [];
+    const links     = d.links     || {};
+    let html = '';
+
+    // ── Schnell-Links (immer sichtbar, Google Maps zuerst) ──────────────────
+    const linkDefs = [
+      { key: 'maps',       label: '📍 Google Maps',  bg: '#1a3a1a' },
+      { key: 'herold',     label: '📞 Herold.at',    bg: '#1a2a3a' },
+      { key: 'wko',        label: '🏢 WKO Firmen',   bg: '#1e2235' },
+      { key: 'firmenbuch', label: '📋 Firmenbuch',   bg: '#1e2235' },
+    ];
+    html += `<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">`;
+    for (const { key, label, bg } of linkDefs) {
+      if (!links[key]) continue;
+      html += `<a href="${links[key]}" target="_blank"
+        style="display:flex;align-items:center;gap:7px;padding:6px 10px;background:${bg};border:1px solid #2e3450;border-radius:6px;text-decoration:none;font-size:.74rem;color:#c8d6f0;font-weight:500">
+        ${label}<span style="margin-left:auto;color:#4a5268;font-size:.65rem">↗</span></a>`;
+    }
+    html += `</div>`;
+
+    // ── Gefundene Kontakte (Google Places / WKO) ────────────────────────────
+    if (companies.length > 0) {
+      _currentOwner = companies[0];
+      for (const c of companies) {
+        html += `<div style="background:#1e2235;border:1px solid #2e3450;border-radius:7px;padding:9px 10px;margin-bottom:6px">`;
+        html += `<div style="font-size:.77rem;font-weight:700;color:#c8d6f0;margin-bottom:1px">${c.name}</div>`;
+        html += `<div style="font-size:.65rem;color:#52ff00;margin-bottom:5px">Quelle: ${c.source}</div>`;
+        if (c.address) html += `<div style="font-size:.70rem;color:#8892aa;margin-bottom:3px">📍 ${c.address}</div>`;
+        if (c.website) html += `<div style="font-size:.70rem;margin-bottom:3px"><a href="${c.website}" target="_blank" style="color:#7ecfff">🌐 ${c.website.replace(/^https?:\/\//,'').split('/')[0]}</a></div>`;
+        if (c.gf_name) html += `<div style="font-size:.70rem;color:#c8d6f0;margin-bottom:2px">👤 GF: ${c.gf_name}</div>`;
+
+        // Anruf-Buttons (Telefon prominenter als vorher)
+        const phones = [
+          c.phone    ? { nr: c.phone,    lbl: '📞 Firma anrufen' }    : null,
+          c.gf_phone ? { nr: c.gf_phone, lbl: '📞 GF anrufen' }       : null,
+        ].filter(Boolean);
+        const emails = [
+          c.email    ? { addr: c.email,    lbl: '✉️ Firma' }  : null,
+          c.gf_email ? { addr: c.gf_email, lbl: '✉️ GF'    }  : null,
+        ].filter(Boolean);
+
+        if (phones.length || emails.length || c.website) {
+          html += `<div style="display:flex;flex-direction:column;gap:4px;margin-top:6px">`;
+          for (const p of phones) {
+            html += `<a href="tel:${p.nr.replace(/[\s()\-]/g,'')}"
+              style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:#163816;border:1px solid #169000;border-radius:6px;text-decoration:none;color:#c8d6f0;font-size:.76rem;font-weight:600">
+              ${p.lbl} <b style="margin-left:auto;letter-spacing:.03em">${p.nr}</b></a>`;
+          }
+          for (const em of emails) {
+            html += `<a href="mailto:${em.addr}"
+              style="display:flex;align-items:center;gap:8px;padding:5px 10px;background:#1e2235;border:1px solid #2e3450;border-radius:6px;text-decoration:none;color:#7ecfff;font-size:.72rem">
+              ${em.lbl} <span style="margin-left:auto;font-size:.68rem">${em.addr}</span></a>`;
+          }
+          html += `</div>`;
+        }
+        html += `</div>`;
+      }
+    } else {
+      html += `<div style="font-size:.72rem;color:#4a5268;padding:2px 0 6px">Kein automatischer Eintrag gefunden – bitte Links oben nutzen.</div>`;
+    }
+
+    if (!d.places_enabled) {
+      html += `<div style="font-size:.64rem;color:#2e3450;margin-top:4px" title="GOOGLE_PLACES_API_KEY in .env setzen">ℹ️ Google Places nicht aktiv (API-Key fehlt)</div>`;
+    }
+    el.innerHTML = html;
+  } catch {
+    el.innerHTML = `<div style="font-size:.74rem;color:#cc6060">Fehler beim Laden der Kontakte</div>`;
+  }
+}
+
+function showToast(msg, type) {
+  const el = document.createElement('div');
+  el.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:99999;padding:10px 22px;border-radius:8px;font-size:.83rem;font-weight:600;pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,.5);white-space:nowrap;background:${type==='success'?'#16a34a':'#dc2626'};color:#fff`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => { el.style.transition='opacity .3s'; el.style.opacity='0'; setTimeout(()=>el.remove(),300); }, 3000);
+}
+
+// Sliders sichtbar wenn Dach ODER Frei aktiv
+function updateAreaControls() {
+  const show = bldState.enabled || oaState.enabled;
+  document.getElementById('area-ctrl').style.display = show ? 'flex' : 'none';
+  document.getElementById('dist-ctrl').style.display = show ? 'flex' : 'none';
+}
+
+// Buildings toggle
+document.getElementById('btn-buildings').addEventListener('click', function() {
+  bldState.enabled = !bldState.enabled;
+  this.classList.toggle('active', bldState.enabled);
+  updateAreaControls();
+  if (!bldState.enabled) {
+    if (bldState.layer) { map.removeLayer(bldState.layer); bldState.layer = null; }
+    if (!oaState.enabled) document.getElementById('bld-zoom-msg').style.display = 'none';
+    document.getElementById('stat-buildings').textContent = '—';
+    if (!oaState.enabled) document.getElementById('stat-mwp').textContent = '—';
+  } else { loadBuildingsViewport(); }
+});
+
+// Open-areas toggle
+document.getElementById('btn-open-areas').addEventListener('click', function() {
+  oaState.enabled = !oaState.enabled;
+  this.classList.toggle('active', oaState.enabled);
+  updateAreaControls();
+  if (!oaState.enabled) {
+    if (oaState.layer) { map.removeLayer(oaState.layer); oaState.layer = null; }
+    if (!bldState.enabled) document.getElementById('bld-zoom-msg').style.display = 'none';
+    updateOaStats(0, 0);
+    if (!bldState.enabled) document.getElementById('stat-mwp').textContent = '—';
+  } else { loadOpenAreasViewport(); }
+});
+
+// Lead-markers (Projekt-Pins) toggle
+let _leadsVisible = true;
+document.getElementById('btn-leads').addEventListener('click', function() {
+  _leadsVisible = !_leadsVisible;
+  this.classList.toggle('active', _leadsVisible);
+  if (_leadsVisible) {
+    _leadLayer.addTo(map);
+  } else {
+    map.removeLayer(_leadLayer);
+  }
+});
+
+// Area slider ↔ number input sync (gilt für Dachflächen UND Freiflächen)
+// Logarithmic slider: positions 0–100 map to 100–50 000 m²
+const AREA_LOG_MIN = 100, AREA_LOG_MAX = 50000;
+function areaFromPos(pos) {
+  return Math.round(AREA_LOG_MIN * Math.pow(AREA_LOG_MAX / AREA_LOG_MIN, pos / 100));
+}
+function posFromArea(area) {
+  return Math.round(Math.log(Math.max(AREA_LOG_MIN, Math.min(AREA_LOG_MAX, area)) / AREA_LOG_MIN)
+    / Math.log(AREA_LOG_MAX / AREA_LOG_MIN) * 100);
+}
+
+function applyAreaFilter(m2) {
+  const v = Math.max(AREA_LOG_MIN, Math.min(AREA_LOG_MAX, Math.round(m2) || 500));
+  bldState.minArea = v;
+  oaState.minArea  = v;
+  document.getElementById('f-area').value     = posFromArea(v);
+  document.getElementById('f-area-num').value = v;
+  document.getElementById('fv-area-kwp').textContent = areaToKwp(v);
+  const key = bboxKey(map.getBounds());
+  if (bldState.enabled) {
+    if (bldState.cache.has(key)) renderBuildingPolygons(bldState.cache.get(key));
+    else loadBuildingsViewport();
+  }
+  if (oaState.enabled) {
+    if (oaState.cache.has(key)) renderOpenAreaPolygons(oaState.cache.get(key));
+    else loadOpenAreasViewport();
+  }
+}
+// Slider moves → convert log position to m², then apply
+document.getElementById('f-area').addEventListener('input', function() {
+  applyAreaFilter(areaFromPos(parseInt(this.value)));
+});
+// Number input → direct m² value
+document.getElementById('f-area-num').addEventListener('change', function() {
+  applyAreaFilter(parseInt(this.value) || 500);
+});
+
+// Distance slider (gilt für beide)
+document.getElementById('f-dist').addEventListener('input', function() {
+  bldState.maxDist = parseInt(this.value);
+  oaState.maxDist  = parseInt(this.value);
+  document.getElementById('fv-dist').textContent = this.value + ' m';
+  bldState.cache.clear();
+  oaState.cache.clear();
+  if (bldState.enabled) loadBuildingsViewport();
+  if (oaState.enabled)  loadOpenAreasViewport();
+});
+
+// ══ Top-bar chips ════════════════════════════════════════════════════════════
+function applyNetScanMetaFromData(data) {
+  const ts = data?.scanned_at || data?.scan_date;
+  const el = document.getElementById('stat-net-scan-val');
+  if (!el) return;
+  el.textContent = ts ? new Date(ts).toLocaleString('de-AT', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+}
+
+function updateTopBar(scan) {
+  if (!scan) return;
+  const d = scan.scanned_at || scan.date;
+  applyNetScanMetaFromData({ scanned_at: d, scan_date: scan.date });
+  const bar = document.getElementById('status-chips');
+  bar.innerHTML = '';
+  const c   = scan.counts || {};
+  const cfg = [['free','#169000','#fff'],['partial','#52ff00','#333'],['regional','#ffff00','#333'],['local','#febe04','#333'],['full','#cc0000','#fff']];
+  cfg.forEach(([k, bg, col]) => {
+    if (!c[k]) return;
+    const s = document.createElement('span');
+    s.className = 'chip';
+    s.style.background = bg; s.style.color = col;
+    s.textContent = `${k.charAt(0).toUpperCase()+k.slice(1)}: ${c[k]}`;
+    bar.appendChild(s);
+  });
+}
+
+// ══ Bug report ═══════════════════════════════════════════════════════════════
+let _bugState = {};
+function openBugModal() {
+  document.getElementById('bug-desc').value = '';
+  document.getElementById('bug-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('bug-desc').focus(), 50);
+}
+function closeBugModal() { document.getElementById('bug-modal').style.display = 'none'; }
+
+function openLogoutModal() {
+  document.getElementById('logout-modal').style.display = 'flex';
+}
+function closeLogoutModal() {
+  document.getElementById('logout-modal').style.display = 'none';
+}
+function clearAppLocalStorage() {
+  try { localStorage.removeItem(MAP_STATE_KEY); } catch {}
+  closeLogoutModal();
+  if (confirm(
+    'Lokaler Karten-Zustand (Zoom/Lage) wurde gelöscht.\n\n' +
+    'Seite jetzt neu laden?\n\n' +
+    'Hinweis: Den gespeicherten Website-Login entfernst du in den Browser-Einstellungen unter „Passwörter“.'
+  )) location.reload();
+}
+async function submitBugReport() {
+  const text = document.getElementById('bug-desc').value.trim();
+  if (!text) { document.getElementById('bug-desc').focus(); return; }
+  const type = document.querySelector('input[name="fb-type"]:checked')?.value || 'other';
+  const zoom = Math.floor(map.getZoom()), b = map.getBounds();
+  try {
+    const r = await fetch('/api/bug-report', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type, description: text, zoom,
+        bbox: { north: b.getNorth().toFixed(4), south: b.getSouth().toFixed(4),
+                east:  b.getEast().toFixed(4),  west:  b.getWest().toFixed(4) },
+      }),
+    });
+    const d = await r.json();
+    if (d.ok) { closeBugModal(); }
+    else alert('❌ Fehler beim Speichern');
+  } catch { alert('❌ Server nicht erreichbar'); }
+}
+
+// ══ MEASUREMENT TOOL ═════════════════════════════════════════════════════════
+let measureMode = null, measureDrawCtrl = null, measureFG = null;
+
+function initMeasureTool() {
+  measureFG = new L.FeatureGroup().addTo(map);
+  const Btn = L.Control.extend({
+    options: { position: 'topright' },
+    onAdd() {
+      const el = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+      el.style.cssText = 'background:#1a1d26;border:1px solid #2e3450';
+      el.innerHTML = `<a href="#" title="Messen" style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;color:#8892aa;text-decoration:none;font-size:1.1rem">📏</a>`;
+      el.firstChild.onclick = e => { e.preventDefault(); toggleMeasurePanel(); };
+      L.DomEvent.disableClickPropagation(el);
+      return el;
+    },
+  });
+  new Btn().addTo(map);
+}
+function toggleMeasurePanel() {
+  const p = document.getElementById('measure-panel');
+  const open = p.style.display !== 'flex';
+  p.style.display = open ? 'flex' : 'none';
+  if (!open) clearMeasure();
+}
+function clearMeasure() {
+  if (measureDrawCtrl) { measureDrawCtrl.disable(); measureDrawCtrl = null; }
+  measureMode = null;
+  if (measureFG) measureFG.clearLayers();
+  document.getElementById('measure-result').style.display = 'none';
+  ['mbtn-line','mbtn-area','mbtn-click'].forEach(id => document.getElementById(id)?.classList.remove('active'));
+}
+function startMeasureLine() {
+  clearMeasure(); measureMode = 'line';
+  document.getElementById('mbtn-line').classList.add('active');
+  measureDrawCtrl = new L.Draw.Polyline(map, { shapeOptions: { color:'#7ecfff', weight:3 } });
+  measureDrawCtrl.enable();
+}
+function startMeasureArea() {
+  clearMeasure(); measureMode = 'area';
+  document.getElementById('mbtn-area').classList.add('active');
+  measureDrawCtrl = new L.Draw.Polygon(map, { shapeOptions: { color:'#22c55e', weight:2, fillOpacity:0.15 } });
+  measureDrawCtrl.enable();
+}
+function startMeasureClick() {
+  clearMeasure(); measureMode = 'click';
+  document.getElementById('mbtn-click').classList.add('active');
+  showMeasureResult('Gebäudeumriss auf der Karte anklicken…');
+}
+map.on(L.Draw.Event.CREATED, function(e) {
+  if (!measureFG) return;
+  measureFG.clearLayers();
+  measureFG.addLayer(e.layer);
+  measureDrawCtrl = null;
+  if (measureMode === 'line') {
+    const pts = e.layer.getLatLngs();
+    let d = 0;
+    for (let i = 0; i < pts.length - 1; i++) d += pts[i].distanceTo(pts[i+1]);
+    showMeasureResult(`Distanz: ${d < 1000 ? Math.round(d)+' m' : (d/1000).toFixed(2)+' km'}`);
+  } else if (measureMode === 'area') {
+    const pts = e.layer.getLatLngs()[0];
+    const R = 6371000, d2r = Math.PI/180, cosLat = Math.cos(pts[0].lat * d2r);
+    const proj = pts.map(p => [(p.lng-pts[0].lng)*d2r*R*cosLat, (p.lat-pts[0].lat)*d2r*R]);
+    let a = 0;
+    for (let i = 0; i < proj.length; i++) {
+      const j = (i+1) % proj.length;
+      a += proj[i][0]*proj[j][1] - proj[j][0]*proj[i][1];
+    }
+    const area = Math.abs(a)/2, kwp = areaToKwp(area);
+    const areaStr = area >= 10000 ? `${(area/10000).toFixed(2)} ha` : `${Math.round(area).toLocaleString('de-AT')} m²`;
+    showMeasureResult(`Fläche: ${areaStr} ≈ ${kwp} kWp möglich`);
+  }
+});
+function showMeasureResult(text) {
+  const el = document.getElementById('measure-result');
+  el.textContent = text; el.style.display = 'block';
+}
+
+// ══ FLÄCHEN-SCAN ═════════════════════════════════════════════════════════════
+const OA_LANDUSE_LABELS = {
+  industrial:   'Industriegebiet',
+  commercial:   'Gewerbegebiet',
+  retail:       'Einzelhandel',
+  depot:        'Lagerplatz',
+  brownfield:   'Brachfläche',
+  landfill:     'Deponie',
+  construction: 'Baugebiet',
+};
+const STATUS_SORT_LABEL = { free:'Frei', partial:'Teilw.', regional:'Regional', local:'Lokal', full:'Voll' };
+
+let _scanSort      = 'kwp';
+let _scanSortAsc   = false;   // false = absteigend (Standard)
+let _scanResults   = [];
+let _scanMeta      = null;    // generated_at, filter (für Export)
+let _scanHighlight = null;
+let _scanMode      = 'open';  // 'open' | 'roof' — zuletzt gewählter Scan
+
+function setScanDownloadVisible(show) {
+  const w = document.getElementById('scan-dl-wrap');
+  if (w) w.style.display = show ? 'flex' : 'none';
+}
+
+function downloadScanGeoJSON() {
+  if (!_scanResults.length) return;
+  const ringFromPoly = (poly) => {
+    if (!poly || poly.length < 3) return null;
+    const ring = poly.map(([lat, lng]) => [Number(lng), Number(lat)]);
+    const a = ring[0], b = ring[ring.length - 1];
+    if (a[0] !== b[0] || a[1] !== b[1]) ring.push([a[0], a[1]]);
+    return ring;
+  };
+  const fc = {
+    type: 'FeatureCollection',
+    metadata: _scanMeta,
+    features: _scanResults.map(a => {
+      const ring = ringFromPoly(a.polygon);
+      return {
+        type: 'Feature',
+        properties: {
+          osm_id: a.osm_id,
+          name: a.name,
+          landuse: a.landuse,
+          building_type: a.building_type,
+          roof_area_m2: a.roof_area_m2,
+          area_m2: a.area_m2,
+          kwp: a.kwp,
+          kwh_year: a.kwh_year,
+          usable_area: a.usable_area,
+          modules: a.modules,
+          distance_to_trafo_m: a.distance_to_trafo_m,
+          nearest_trafo_id: a.nearest_trafo_id,
+          nearest_trafo_tst_id: a.nearest_trafo_tst_id,
+          nearest_trafo_status: a.nearest_trafo_status,
+          atlas_url: a.atlas_url,
+        },
+        geometry: ring
+          ? { type: 'Polygon', coordinates: [ring] }
+          : { type: 'Point', coordinates: [a.lng, a.lat] },
+      };
+    }),
+  };
+  const stamp = (_scanMeta && _scanMeta.generated_at) ? _scanMeta.generated_at.slice(0, 10) : 'export';
+  const blob = new Blob([JSON.stringify(fc, null, 2)], { type: 'application/geo+json' });
+  const el = document.createElement('a');
+  el.href = URL.createObjectURL(blob);
+  const prefix = _scanMode === 'roof' ? 'dach' : 'flaechen';
+  el.download = `${prefix}-scan-${stamp}.geojson`;
+  el.click();
+  URL.revokeObjectURL(el.href);
+}
+
+function downloadScanCSV() {
+  if (!_scanResults.length) return;
+  const cols = ['osm_id','name','landuse','building_type','roof_area_m2','area_m2','kwp','kwh_year','distance_to_trafo_m','nearest_trafo_id','nearest_trafo_tst_id','nearest_trafo_status','lat','lng','atlas_url'];
+  const escCell = (v) => {
+    const s = v == null ? '' : String(v);
+    if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  };
+  const lines = [cols.join(',')];
+  for (const a of _scanResults) {
+    lines.push(cols.map(c => {
+      if (c === 'lat') return escCell(a.lat);
+      if (c === 'lng') return escCell(a.lng);
+      return escCell(a[c]);
+    }).join(','));
+  }
+  const stamp = (_scanMeta && _scanMeta.generated_at) ? _scanMeta.generated_at.slice(0, 10) : 'export';
+  const blob = new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const el = document.createElement('a');
+  el.href = URL.createObjectURL(blob);
+  const prefix = _scanMode === 'roof' ? 'dach' : 'flaechen';
+  el.download = `${prefix}-scan-${stamp}.csv`;
+  el.click();
+  URL.revokeObjectURL(el.href);
+}
+
+function openScanModal() {
+  document.getElementById('scan-modal').style.display = 'flex';
+}
+function closeScanModal() {
+  document.getElementById('scan-modal').style.display = 'none';
+}
+
+async function startScan() {
+  const statuses = [...document.querySelectorAll('input[name="sc-status"]:checked')].map(el => el.value);
+  if (!statuses.length) { alert('Bitte mindestens einen Trafo-Status wählen.'); return; }
+  const minArea = parseInt(document.getElementById('sc-min-area').value) || 3000;
+  const maxDist = parseInt(document.getElementById('sc-max-dist').value) || 200;
+  _scanMode = (document.querySelector('input[name="sc-mode"]:checked') || {}).value === 'roof' ? 'roof' : 'open';
+  const scanUrl = _scanMode === 'roof' ? '/api/scan-buildings' : '/api/scan-open-areas';
+
+  closeScanModal();
+  openScanPanel();
+  setScanDownloadVisible(false);
+  _scanMeta = null;
+  document.getElementById('scan-title').textContent = '⏳ Scan läuft…';
+  document.getElementById('scan-list').innerHTML =
+    `<div id="scan-empty">⏳ Lade Daten von OpenStreetMap…<br><small style="color:#4a5268">Kann 30–90 Sekunden dauern (mehrere Server werden automatisch versucht)</small></div>`;
+
+  try {
+    const params = new URLSearchParams({ status: statuses.join(','), min_area: minArea, max_dist: maxDist, sort: _scanSort });
+    // AbortController mit 170 s – etwas kuerzer als nginx-Timeout (180 s)
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 170000);
+    let r;
+    try {
+      r = await fetch(`${scanUrl}?${params}`, { signal: ctrl.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!r.ok) {
+      let detail = '';
+      try {
+        const j = await r.json();
+        detail = (j && j.error) ? String(j.error) : '';
+      } catch {}
+      throw new Error(detail || `Server-Fehler ${r.status}`);
+    }
+    const data = await r.json();
+    const rawList = _scanMode === 'roof' ? (data.buildings || []) : (data.areas || []);
+    await loadLeadMarkers();
+    const discarded = new Set(_allProjects.filter(l => l.stage === 'verworfen').map(l => String(l.osm_id)));
+    const hiddenVerworfen = rawList.filter(a => discarded.has(String(a.osm_id))).length;
+    _scanResults = rawList.filter(a => !discarded.has(String(a.osm_id)));
+    _scanMeta = { generated_at: data.generated_at, filter: data.filter, trafo_count: data.trafo_count, scan_mode: _scanMode, hidden_verworfen: hiddenVerworfen, raw_count: data.count };
+    renderScanList(data, hiddenVerworfen);
+    setScanDownloadVisible(_scanResults.length > 0);
+  } catch(e) {
+    document.getElementById('scan-title').textContent = 'Scan fehlgeschlagen';
+    document.getElementById('scan-list').innerHTML =
+      `<div id="scan-empty">❌ ${e.message}<br><small style="color:#4a5268">Bitte erneut versuchen.</small></div>`;
+    setScanDownloadVisible(false);
+  }
+}
+
+const SORT_LABELS = {
+  kwp:  ['↓ kWp', '↑ kWp'],
+  area: ['↓ Fläche', '↑ Fläche'],
+  dist: ['↑ Distanz', '↓ Distanz'],
+};
+
+function setScanSort(by) {
+  if (_scanSort === by) {
+    // Gleicher Button → Richtung umkehren
+    _scanSortAsc = !_scanSortAsc;
+  } else {
+    // Neuer Button → Standardrichtung
+    _scanSort    = by;
+    _scanSortAsc = (by === 'dist'); // Distanz: Standard aufsteigend, Rest absteigend
+  }
+  // Button-Labels + aktiv-Klasse aktualisieren
+  ['kwp','area','dist'].forEach(k => {
+    const btn = document.getElementById(`sort-${k}`);
+    if (!btn) return;
+    btn.classList.toggle('active', k === _scanSort);
+    const [descLbl, ascLbl] = SORT_LABELS[k];
+    btn.textContent = (k === _scanSort && _scanSortAsc) ? ascLbl : descLbl;
+  });
+  if (!_scanResults.length) return;
+  applyScanSort();
+}
+
+function _scanAreaVal(a) {
+  const m = a.area_m2 != null ? a.area_m2 : a.roof_area_m2;
+  return m != null ? m : 0;
+}
+
+function applyScanSort() {
+  const sorted = [..._scanResults];
+  const asc = _scanSortAsc;
+  if (_scanSort === 'area') sorted.sort((a, b) => asc ? _scanAreaVal(a) - _scanAreaVal(b) : _scanAreaVal(b) - _scanAreaVal(a));
+  else if (_scanSort === 'dist') sorted.sort((a, b) => asc ? a.distance_to_trafo_m - b.distance_to_trafo_m : b.distance_to_trafo_m - a.distance_to_trafo_m);
+  else sorted.sort((a, b) => asc ? a.kwp - b.kwp : b.kwp - a.kwp);
+  renderScanCards(sorted);
+}
+
+function renderScanList(data, hiddenVerworfen) {
+  const rawTotal = data.count || 0;
+  const shown = _scanResults.length;
+  const kindLabel = _scanMode === 'roof' ? 'Dachflächen' : 'Freiflächen';
+  const f     = data.filter || {};
+  const statusLabels = (f.statusFilter || []).map(s => STATUS_SORT_LABEL[s] || s).join(', ');
+  const titleExtra = hiddenVerworfen > 0
+    ? ` · ${hiddenVerworfen.toLocaleString('de-AT')} verworfene ausgeblendet`
+    : '';
+  document.getElementById('scan-title').textContent =
+    `${shown.toLocaleString('de-AT')} ${kindLabel} gefunden${titleExtra}`;
+  if (!shown && !rawTotal) {
+    setScanDownloadVisible(false);
+    document.getElementById('scan-list').innerHTML =
+      `<div id="scan-empty">Keine ${kindLabel} gefunden.<br><small style="color:#4a5268">Kriterien anpassen (Filter-Button oben).</small></div>`;
+    return;
+  }
+  if (!shown && rawTotal > 0) {
+    setScanDownloadVisible(false);
+    document.getElementById('scan-list').innerHTML =
+      `<div id="scan-empty">Alle ${rawTotal.toLocaleString('de-AT')} Treffer sind im CRM als „Verworfen“ markiert — daher ausgeblendet.</div>`;
+    return;
+  }
+  setScanDownloadVisible(true);
+  // Sub-info
+  const totalKwp = _scanResults.reduce((s, a) => s + (a.kwp || 0), 0);
+  const info = document.createElement('div');
+  info.style.cssText = 'padding:7px 14px 4px;font-size:.67rem;color:#4a5268;border-bottom:1px solid #1e2235;line-height:1.6';
+  let infoHtml = `Roh-Treffer API: <b style="color:#8892aa">${rawTotal.toLocaleString('de-AT')}</b> · angezeigt: <b style="color:#7ecfff">${shown.toLocaleString('de-AT')}</b>`;
+  if (hiddenVerworfen > 0) {
+    infoHtml += `<br><span style="color:#f87171;font-weight:700">${hiddenVerworfen.toLocaleString('de-AT')} verworfene CRM-Objekte nicht in dieser Liste</span>`;
+  }
+  infoHtml += `<br>Status: <b style="color:#8892aa">${statusLabels}</b> · ≥${(f.minArea||0).toLocaleString('de-AT')} m² · ≤${f.maxDist||0} m Trafo<br>Gesamt-Potential (Liste): <b style="color:#7ecfff">${(totalKwp/1000).toFixed(1)} MWp</b>`;
+  info.innerHTML = infoHtml;
+
+  const listEl = document.getElementById('scan-list');
+  listEl.innerHTML = '';
+  listEl.appendChild(info);
+  applyScanSort();
+}
+
+function renderScanCards(areas) {
+  const listEl = document.getElementById('scan-list');
+  // Remove existing cards (keep info line at top)
+  [...listEl.querySelectorAll('.scan-card')].forEach(el => el.remove());
+
+  areas.forEach((a, idx) => {
+    const cfg    = STATUS[a.nearest_trafo_status] || STATUS.unknown;
+    const isRoof = _scanMode === 'roof' || a.building_type;
+    const areaM2 = _scanAreaVal(a);
+    const badgeLbl = isRoof ? (a.building_type || 'Dach') : (OA_LANDUSE_LABELS[a.landuse] || a.landuse);
+    const name  = a.name || (isRoof
+      ? `${badgeLbl} · OSM ${a.osm_id}`
+      : `${OA_LANDUSE_LABELS[a.landuse] || a.landuse} (${(a.area_m2 / 10000).toFixed(2)} ha)`);
+    const card   = document.createElement('div');
+    card.className = 'scan-card';
+    card.innerHTML = `
+      <div class="scan-card-top">
+        <span class="scan-badge-lu">${badgeLbl}</span>
+        <span class="status-badge" style="background:${cfg.color};color:${cfg.text};font-size:.63rem;padding:1px 6px">${cfg.label}</span>
+        <span class="scan-card-kwp">${a.kwp.toLocaleString('de-AT')} kWp</span>
+      </div>
+      <div class="scan-card-name" title="${name}">${name}</div>
+      <div class="scan-card-meta">
+        <span>📐 ${(areaM2).toLocaleString('de-AT')} m²</span>
+        <span>⚡ ${a.distance_to_trafo_m} m zum Trafo</span>
+      </div>`;
+    card.addEventListener('click', () => flyToScanResult(a));
+    listEl.appendChild(card);
+  });
+}
+
+function flyToScanResult(a) {
+  // Altes Highlight entfernen
+  if (_scanHighlight) { map.removeLayer(_scanHighlight); _scanHighlight = null; }
+
+  // Aktive Karte in der Liste markieren
+  document.querySelectorAll('.scan-card').forEach(c => c.style.borderLeft = '');
+  const ps = polygonStyleForOsm(a.nearest_trafo_status, a.osm_id, _scanMode === 'roof' || a.building_type ? 'roof' : 'open');
+
+  if (a.polygon && a.polygon.length) {
+    // Zur Fläche fliegen mit leichtem Padding
+    const bounds = L.latLngBounds(a.polygon);
+    map.flyToBounds(bounds.pad(0.3), { maxZoom: 16, duration: 0.9 });
+
+    // Dauerhaftes Highlight-Polygon (bleibt bis nächster Klick oder Panel-Close)
+    _scanHighlight = L.polygon(a.polygon, {
+      color:       '#ffffff',
+      weight:      3.5,
+      dashArray:   '7 4',
+      fillColor:   ps.fillColor,
+      fillOpacity: 0.4,
+      interactive: false,   // klickbar bleiben die darunter liegenden Layer
+    }).addTo(map);
+  } else {
+    map.flyTo([a.lat, a.lng], 15, { duration: 0.9 });
+  }
+
+  if (_scanMode === 'roof' || a.building_type) {
+    const ra = a.roof_area_m2 != null ? a.roof_area_m2 : a.area_m2;
+    showBuildingSidebar({
+      osm_id: a.osm_id, lat: a.lat, lng: a.lng, address: a.address,
+      roof_area_m2: ra, kwp: a.kwp, kwh_year: a.kwh_year,
+      distance_to_trafo_m: a.distance_to_trafo_m, nearest_trafo_status: a.nearest_trafo_status,
+      nearest_trafo_id: a.nearest_trafo_id, nearest_trafo_tst_id: a.nearest_trafo_tst_id,
+      polygon: a.polygon, building_type: a.building_type, atlas_url: a.atlas_url,
+      usable_area: a.usable_area, modules: a.modules,
+    });
+  } else {
+    showOpenAreaSidebar(a);
+  }
+}
+
+async function seedScanToCrm() {
+  if (!_scanResults.length) return;
+  const n = _scanResults.length;
+  if (!confirm(`CRM: ${n} Einträge importieren? Bereits vorhandene OSM-IDs werden übersprungen.`)) return;
+  const kind = _scanMode === 'roof' ? 'roof' : 'open';
+  try {
+    const r = await apiFetch('/api/crm/seed-from-scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind, items: _scanResults }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 401) { alert('Bitte anmelden.'); return; }
+    if (r.status === 403) { alert('Keine Berechtigung (Vertrieb/Admin/Assistenz).'); return; }
+    if (!r.ok) { alert(d.error || r.status); return; }
+    alert(`CRM: ${d.created} neu angelegt, ${d.skipped} übersprungen.`);
+    loadLeadMarkers();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+function openScanPanel() {
+  document.getElementById('scan-panel').classList.add('open');
+}
+function closeScanPanel() {
+  document.getElementById('scan-panel').classList.remove('open');
+  if (_scanHighlight) { map.removeLayer(_scanHighlight); _scanHighlight = null; }
+}
+
+// ══ Mini-CRM ═════════════════════════════════════════════════════════════════
+const LEAD_STAGES = {
+  zu_recherchieren:         { label: 'Zu recherchieren',               color: '#9ca3af', bg: '#1f2937' },
+  recherche_begonnen:       { label: 'Recherche begonnen',             color: '#64748b', bg: '#272f3a' },
+  anrufversuch:             { label: 'Anrufversuch',                  color: '#60a5fa', bg: '#1e3a5f' },
+  infos_vollmacht_versendet:{ label: 'Infos + Vollmacht versendet',   color: '#fbbf24', bg: '#451a03' },
+  vollmacht_erhalten:       { label: 'Vollmacht erhalten',            color: '#c084fc', bg: '#3b0764' },
+  vororttermin:             { label: 'Vororttermin',                  color: '#34d399', bg: '#064e3b' },
+  netzpruefung_positiv:     { label: 'Netzprüfung positiv',            color: '#22d3ee', bg: '#083344' },
+  verworfen:                { label: 'Verworfen / Abgelehnt',         color: '#fecaca', bg: '#7f1d1d', markerFill: '#7f1d1d' },
+  // Legacy (nur Anzeige alter gespeicherter Werte)
+  new:                        { label: 'Neu (alt)',                  color: '#9ca3af', bg: '#1f2937' },
+  contacted:                  { label: 'Kontaktiert (alt)',            color: '#60a5fa', bg: '#1e3a5f' },
+  recherche:                 { label: 'Recherche (alt)',            color: '#9ca3af', bg: '#1f2937' },
+};
+
+const CRM_STAGE_ORDER = [
+  'zu_recherchieren', 'recherche_begonnen', 'anrufversuch', 'infos_vollmacht_versendet', 'vollmacht_erhalten',
+  'vororttermin', 'netzpruefung_positiv', 'verworfen',
+];
+
+let _crmCurrentId   = null;  // current lead id
+let _crmCurrentOsm  = null;  // current osm_id
+let _contactTimer   = null;  // debounce timer for contact save
+let _projStageFilter = '';
+
+// ── HTML escaping helper (prevents XSS wherever user content is rendered) ─────
+function esc(s) {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// ── Project ID formatting ─────────────────────────────────────────────────────
+function fmtProjectId(nr) {
+  return nr ? `P-${String(nr).padStart(3, '0')}` : '';
+}
+
+// ── Stage select HTML ─────────────────────────────────────────────────────────
+function stageSelectHtml(selected) {
+  const sel = CRM_STAGE_ORDER.includes(selected) ? selected : 'zu_recherchieren';
+  return `<select class="crm-stage-select" onchange="crmChangeStage(this.value)">
+    ${CRM_STAGE_ORDER.map((k) => {
+      const v = LEAD_STAGES[k] || { label: k };
+      return `<option value="${k}" ${k === sel ? 'selected' : ''}>${v.label}</option>`;
+    }).join('')}
+  </select>`;
+}
+function stagePill(stage) {
+  const s = LEAD_STAGES[stage] || LEAD_STAGES.zu_recherchieren;
+  return `<span class="crm-stage-pill" style="color:${s.color};background:${s.bg}">${s.label}</span>`;
+}
+
+function syncSidebarCrmHeaderBadge(leadOrNull) {
+  const el = document.getElementById('sb-crm-stage-badge');
+  if (!el) return;
+  if (!leadOrNull || !leadOrNull.stage) {
+    el.style.display = 'none';
+    el.innerHTML = '';
+    return;
+  }
+  const st = leadOrNull.stage;
+  const s = LEAD_STAGES[st] || LEAD_STAGES.zu_recherchieren;
+  const bdw = st === 'verworfen' ? '1px solid #b91c1c' : '1px solid #3d4a66';
+  el.style.display = 'inline-flex';
+  el.innerHTML = `<span class="status-badge" style="background:${s.bg};color:${s.color};font-size:.62rem;font-weight:800;border:${bdw}">CRM: ${esc(s.label)}</span>`;
+}
+
+// ── Load CRM section for a given OSM id ──────────────────────────────────────
+async function openLeadSection(osm_id, leadData) {
+  _crmCurrentOsm = String(osm_id);
+  _crmCurrentId  = null;
+  syncSidebarCrmHeaderBadge(null);
+  const container = document.getElementById('crm-body');
+  if (!container) return;
+  container.innerHTML = '<div style="font-size:.76rem;color:#4a5268;padding:4px 0">⏳ Lade Projektdaten…</div>';
+
+  try {
+    const r = await apiFetch(`/api/leads/osm/${encodeURIComponent(osm_id)}`);
+    if (r.status === 401) {
+      container.innerHTML = '<div style="font-size:.76rem;color:#f87171">Bitte anmelden (Menü „Abmelden“ / Basic-Auth).</div>';
+      syncSidebarCrmHeaderBadge(null);
+      return;
+    }
+    if (r.status === 404) {
+      renderCrmEmpty(container, leadData);
+    } else if (r.ok) {
+      const { lead } = await r.json();
+      _crmCurrentId = lead.id;
+      renderCrmFull(container, lead);
+    }
+  } catch { container.innerHTML = '<div style="font-size:.76rem;color:#f87171">Fehler beim Laden</div>'; syncSidebarCrmHeaderBadge(null); }
+}
+
+function renderCrmEmpty(container, leadData) {
+  const hint = leadData && leadData.polygon
+    ? 'Karte: Fläche gewählt · legen Sie das Vertrieb-Projekt an, um es im CRM-Kanban zu sehen.'
+    : 'Noch kein Vertrieb-Projekt für dieses Objekt.';
+  container.innerHTML = `
+    <div class="crm-empty-state">${hint}</div>
+    <button class="crm-create-btn" type="button" onclick="crmCreateLead()">+ Ins Vertrieb-CRM übernehmen</button>
+    <button class="crm-discard-btn" type="button" onclick="crmMarkUninteressant()">✕ Als uninteressant markieren (ohne Pipeline-Stufen)</button>
+    <div style="font-size:.68rem;color:#4a5268;margin-top:8px;line-height:1.4;text-align:center">Legt nur einen CRM-Eintrag in „Verworfen“ an — rot auf der Karte, aus Flächen-Scan ausgeblendet. Bearbeitung auch im <a href="/crm" target="_blank" rel="noopener" style="color:#7ecfff;font-weight:600">CRM-Kanban</a>.</div>`;
+  container._leadData = leadData; // store for create
+  syncSidebarCrmHeaderBadge(null);
+}
+
+let _nameSaveTimer = null;
+function crmScheduleNameSave() {
+  clearTimeout(_nameSaveTimer);
+  _nameSaveTimer = setTimeout(crmSaveName, 800);
+}
+async function crmSaveName() {
+  if (!_crmCurrentId) return;
+  const name = document.getElementById('crm-proj-name')?.value?.trim() ?? '';
+  await apiFetch(`/api/leads/${_crmCurrentId}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  loadLeadMarkers();
+}
+
+function renderCrmFull(container, lead) {
+  _crmCurrentId = lead.id;
+  const pid = fmtProjectId(lead.project_nr);
+  const stLabel = (LEAD_STAGES[lead.stage] || { label: lead.stage }).label;
+  const crmTabUrl = location.origin + '/crm?open=' + encodeURIComponent(lead.id);
+  const isDisc = lead.stage === 'verworfen';
+  const boxBg = isDisc
+    ? 'linear-gradient(180deg,rgba(127,29,29,.22),rgba(16,25,40,.55))'
+    : 'linear-gradient(180deg,rgba(22,163,74,.1),rgba(16,25,40,.5))';
+  const boxBrd = isDisc ? '#991b1b' : '#166534';
+  const boxLblCol = isDisc ? '#fecaca' : '#86efac';
+  const boxHd = isDisc ? 'Vertrieb: verworfen / uninteressant' : 'Bereits im Vertrieb-CRM';
+  const kanBg = isDisc ? '#450a0a' : '#14532d';
+  const kanBrd = isDisc ? '#b91c1c' : '#16a34a';
+  const kanCol = isDisc ? '#fecaca' : '#86efac';
+  const crmLinkBlock = `<div class="crm-dup-hint" style="background:${boxBg};border:1px solid ${boxBrd};border-radius:8px;padding:8px 10px;margin-bottom:10px">
+    <div style="font-size:.66rem;font-weight:800;color:${boxLblCol};text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">${boxHd}</div>
+    <div style="font-size:.75rem;color:#c8d6f0;line-height:1.4;margin-bottom:2px">
+      <span style="font-weight:800;color:#e5e7eb">${esc(lead.name || '—')}</span>
+      ${pid ? ` <span style="color:#6b7280;font-weight:700">${esc(pid)}</span>` : ''}
+    </div>
+    <div style="font-size:.7rem;color:#8892aa;margin:4px 0 8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      Stufe: <strong style="color:#a5b4fc">${esc(stLabel)}</strong>
+      ${stagePill(lead.stage)}
+    </div>
+    <a class="crm-to-kanban" href="${esc(crmTabUrl)}" target="_blank" rel="noopener" style="display:block;text-align:center;padding:7px 10px;background:${kanBg};border:1px solid ${kanBrd};border-radius:6px;color:${kanCol};font-size:.78rem;font-weight:700;text-decoration:none">▣ Details im CRM öffnen (neuer Tab)</a>
+  </div>`;
+  const discardBtn = isDisc
+    ? `<button type="button" class="crm-discard-btn" disabled>Bereits als uninteressant markiert</button>`
+    : `<button type="button" class="crm-discard-btn" onclick="crmMarkUninteressant()">✕ Als uninteressant markieren (→ Verworfen)</button>`;
+  const notesHtml = lead.notes.length
+    ? lead.notes.map(n => {
+        const dt = new Date(n.ts).toLocaleString('de-AT', { dateStyle:'short', timeStyle:'short' });
+        return `<div class="crm-note-item">
+          <div class="crm-note-text">${esc(n.text)}</div>
+          <div class="crm-note-meta">${esc(dt)} · ${esc(n.author)}</div>
+          <button class="crm-note-del" onclick="crmDeleteNote('${esc(lead.id)}','${n.id}')" title="Löschen">✕</button>
+        </div>`;
+      }).join('')
+    : '<div style="font-size:.73rem;color:#4a5268;padding:2px 0 6px">Noch keine Notizen</div>';
+
+  container.innerHTML = `${crmLinkBlock}
+    <div style="font-size:.66rem;font-weight:700;color:#4a5268;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Karte (Mini)</div>
+    <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">
+      ${pid ? `<span style="font-size:.7rem;font-weight:800;color:#4a5268;background:#13161f;border:1px solid #2e3450;padding:2px 8px;border-radius:5px;flex-shrink:0;letter-spacing:.04em">${pid}</span>` : ''}
+      <input id="crm-proj-name" class="crm-contact-field" style="margin-bottom:0;flex:1"
+        placeholder="Projektname (editierbar)" value="${esc(lead.name||'')}"
+        oninput="crmScheduleNameSave()">
+    </div>
+    <div class="crm-stage-row">
+      ${stageSelectHtml(lead.stage)}
+    </div>
+    ${discardBtn}
+    <div style="font-size:.7rem;color:#4a5268;margin-bottom:6px;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Kontakt</div>
+    <input class="crm-contact-field" id="crm-name"  placeholder="Name"    value="${esc(lead.contact?.name)}"  oninput="crmScheduleContactSave()">
+    <input class="crm-contact-field" id="crm-phone" placeholder="Telefon" value="${esc(lead.contact?.phone)}" oninput="crmScheduleContactSave()">
+    <input class="crm-contact-field" id="crm-email" placeholder="E-Mail"  value="${esc(lead.contact?.email)}"  oninput="crmScheduleContactSave()">
+    <div style="font-size:.7rem;color:#4a5268;margin:8px 0 4px;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Notizen</div>
+    ${notesHtml}
+    <textarea class="crm-note-area" id="crm-note-input" placeholder="Neue Notiz hinzufügen…"></textarea>
+    <button class="crm-add-note-btn" onclick="crmAddNote()">+ Notiz hinzufügen</button>
+    <button class="crm-del-lead-btn" onclick="crmDeleteLead()">🗑 Projekt löschen</button>`;
+  syncSidebarCrmHeaderBadge(lead);
+}
+
+// ── CRM actions ───────────────────────────────────────────────────────────────
+async function crmMarkUninteressant() {
+  const osm = _crmCurrentOsm || (_currentBuilding != null && _currentBuilding.osm_id != null ? String(_currentBuilding.osm_id) : '');
+  if (!osm) {
+    showToast('Keine Objekt-ID – Sidebar neu öffnen.', 'error');
+    return;
+  }
+  const container = document.getElementById('crm-body');
+  try {
+    let leadId = _crmCurrentId;
+    if (!leadId) {
+      const ld = { ...(container?._leadData || {}), ...(_currentBuilding || {}) };
+      const typ = ld.type === 'open_area' ? 'open_area' : 'building';
+      const lat = ld.lat != null ? +ld.lat : NaN;
+      const lng = ld.lng != null ? +ld.lng : NaN;
+      const dataBody = {
+        lat, lng, osm_id: osm,
+        address: ld.address ?? null,
+        name: ld.name ?? null,
+        area_m2: ld.area_m2 ?? ld.roof_area_m2 ?? null,
+        roof_area_m2: ld.roof_area_m2 ?? null,
+        kwp: ld.kwp ?? null,
+        polygon: ld.polygon ?? null,
+        nearest_trafo_status: ld.nearest_trafo_status,
+        distance_to_trafo_m: ld.distance_to_trafo_m,
+        nearest_trafo_id: ld.nearest_trafo_id,
+        nearest_trafo_tst_id: ld.nearest_trafo_tst_id,
+        atlas_url: ld.atlas_url,
+        building_type: ld.building_type,
+        landuse: ld.landuse,
+        usable_area: ld.usable_area,
+        modules: ld.modules,
+        kwh_year: ld.kwh_year,
+      };
+      const r = await apiFetch('/api/leads/upsert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ osm_id: osm, type: typ, stage: 'verworfen', data: dataBody }),
+      });
+      if (r.status === 401) { alert('Bitte anmelden.'); return; }
+      if (r.status === 403) { alert('Keine Berechtigung (Vertrieb/Admin/Assistenz).'); return; }
+      if (!r.ok) {
+        let err = '';
+        try { err = (await r.json()).error || ''; } catch {}
+        showToast(err || 'CRM: Anlage fehlgeschlagen', 'error');
+        return;
+      }
+      let { lead } = await r.json();
+      leadId = lead.id;
+      if (lead.stage !== 'verworfen') {
+        const r2 = await apiFetch(`/api/leads/${encodeURIComponent(leadId)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ stage: 'verworfen' }),
+        });
+        if (!r2.ok) { showToast('Stufe „Verworfen“ konnte nicht gesetzt werden', 'error'); return; }
+        const d2 = await r2.json();
+        lead = d2.lead;
+      }
+      _crmCurrentId = lead.id;
+      if (container) renderCrmFull(container, lead);
+    } else {
+      const r = await apiFetch(`/api/leads/${encodeURIComponent(leadId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage: 'verworfen' }),
+      });
+      if (r.status === 401) { alert('Bitte anmelden.'); return; }
+      if (r.status === 403) { alert('Keine Berechtigung.'); return; }
+      if (!r.ok) { showToast('Speichern fehlgeschlagen', 'error'); return; }
+      const { lead } = await r.json();
+      if (container) renderCrmFull(container, lead);
+    }
+    await loadLeadMarkers();
+    showToast('Als uninteressant markiert (CRM: Verworfen)', 'success');
+  } catch (e) {
+    showToast(e.message || 'Fehler', 'error');
+  }
+}
+
+async function crmCreateLead() {
+  const container = document.getElementById('crm-body');
+  const leadData  = container?._leadData || {};
+  const r = await apiFetch('/api/leads/upsert', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ osm_id: _crmCurrentOsm, type: leadData.type || 'building', data: leadData }),
+  });
+  if (!r.ok) return;
+  const { lead } = await r.json();
+  renderCrmFull(container, lead);
+  loadLeadMarkers();  // Marker sofort einblenden
+}
+
+async function crmChangeStage(stage) {
+  if (!_crmCurrentId) return;
+  const r = await apiFetch(`/api/leads/${_crmCurrentId}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stage }),
+  });
+  if (!r.ok) return;
+  const d = await r.json();
+  const container = document.getElementById('crm-body');
+  if (container && d.lead) renderCrmFull(container, d.lead);
+  loadLeadMarkers();
+}
+
+function crmScheduleContactSave() {
+  clearTimeout(_contactTimer);
+  _contactTimer = setTimeout(crmSaveContact, 800);
+}
+async function crmSaveContact() {
+  if (!_crmCurrentId) return;
+  const name  = document.getElementById('crm-name')?.value  || '';
+  const phone = document.getElementById('crm-phone')?.value || '';
+  const email = document.getElementById('crm-email')?.value || '';
+  await apiFetch(`/api/leads/${_crmCurrentId}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contact: { name, phone, email } }),
+  });
+}
+
+async function crmAddNote() {
+  if (!_crmCurrentId) return;
+  const el   = document.getElementById('crm-note-input');
+  const text = el?.value.trim();
+  if (!text) { el?.focus(); return; }
+  const r = await apiFetch(`/api/leads/${_crmCurrentId}/notes`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  if (!r.ok) return;
+  const { lead } = await r.json();
+  const container = document.getElementById('crm-body');
+  if (container) renderCrmFull(container, lead);
+}
+
+async function crmDeleteNote(leadId, noteId) {
+  if (!confirm('Notiz löschen?')) return;
+  const r = await apiFetch(`/api/leads/${leadId}/notes/${noteId}`, { method: 'DELETE' });
+  if (!r.ok) return;
+  const { lead } = await r.json();
+  const container = document.getElementById('crm-body');
+  if (container) renderCrmFull(container, lead);
+}
+
+async function crmDeleteLead() {
+  if (!_crmCurrentId || !confirm('Projekt wirklich löschen? Alle Notizen gehen verloren.')) return;
+  await apiFetch(`/api/leads/${_crmCurrentId}`, { method: 'DELETE' });
+  _crmCurrentId = null;
+  const container = document.getElementById('crm-body');
+  if (container) renderCrmEmpty(container, {});
+  loadLeadMarkers();  // Marker entfernen
+}
+
+// ── Lead markers on the map ───────────────────────────────────────────────────
+function renderLeadMarkers(leads) {
+  _leadLayer.clearLayers();
+  for (const lead of leads) {
+    const lat = lead.data?.lat, lng = lead.data?.lng;
+    if (lat == null || lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    const stg  = LEAD_STAGES[lead.stage] || LEAD_STAGES.zu_recherchieren;
+    const fillCol = stg.markerFill || stg.color;
+    const addr = lead.data?.address || lead.data?.name || `OSM ${lead.osm_id}`;
+    const icon = lead.type === 'open_area' ? '◆' : '■';
+
+    // Small circle marker – subtle, non-blocking
+    const marker = L.circleMarker([lat, lng], {
+      pane:        'leadPane',
+      radius:      6,
+      color:       'rgba(255,255,255,0.6)',
+      weight:      1.5,
+      fillColor:   fillCol,
+      fillOpacity: 0.82,
+      opacity:     0.85,
+      interactive: true,
+    });
+    const pid    = fmtProjectId(lead.project_nr);
+    const dispName = lead.name || addr;
+    marker.bindTooltip(
+      `<span style="color:#4a5268;font-size:.65rem;font-weight:800">${pid}</span>${pid ? ' · ' : ''}<b style="color:${stg.color}">${stg.label}</b><br>${dispName}`,
+      { direction: 'top', offset: [0, -9], className: 'lead-tip' }
+    );
+    // Re-enable pointer events only on the SVG circle itself
+    marker.on('add', () => {
+      const el = marker.getElement();
+      if (el) el.style.pointerEvents = 'visiblePainted';
+    });
+    marker.on('click', (e) => {
+      L.DomEvent.stopPropagation(e);
+      // open sidebar directly from stored data
+      if (lead.type === 'open_area') showOpenAreaSidebar(lead.data);
+      else showBuildingSidebar(lead.data);
+      map.setView([lat, lng], Math.max(map.getZoom(), 16));
+    });
+    _leadLayer.addLayer(marker);
+  }
+}
+
+async function loadLeadMarkers() {
+  try {
+    const r = await apiFetch('/api/leads');
+    if (!r.ok) return;
+    const d = await r.json();
+    _allProjects = d.leads || [];   // keep panel cache in sync
+    if (_leadsVisible) renderLeadMarkers(_allProjects);
+    else _leadLayer.clearLayers();
+    refreshLeadDependentMapLayers();
+  } catch {}
+}
+
+// ── Projekte overview panel ───────────────────────────────────────────────────
+async function openProjectsModal() {
+  document.getElementById('projects-modal').style.display = 'flex';
+  await loadProjects();
+}
+function closeProjectsModal() {
+  document.getElementById('projects-modal').style.display = 'none';
+}
+
+async function loadProjects() {
+  document.getElementById('projects-list').innerHTML = '<div class="proj-empty">⏳ Lade…</div>';
+  try {
+    const r = await apiFetch('/api/leads');
+    if (!r.ok) {
+      document.getElementById('projects-list').innerHTML = '<div class="proj-empty">Nicht angemeldet oder keine Berechtigung.</div>';
+      return;
+    }
+    const d = await r.json();
+    _allProjects = d.leads || [];
+    renderProjectsList();
+  } catch {
+    document.getElementById('projects-list').innerHTML = '<div class="proj-empty">Fehler beim Laden</div>';
+  }
+}
+
+function filterProjects(stage) {
+  _projStageFilter = stage;
+  document.querySelectorAll('.proj-stage-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.stage === stage);
+  });
+  renderProjectsList();
+}
+
+function renderProjectsList() {
+  const el    = document.getElementById('projects-list');
+  const items = _projStageFilter
+    ? _allProjects.filter(l => l.stage === _projStageFilter)
+    : _allProjects;
+
+  if (!items.length) {
+    el.innerHTML = '<div class="proj-empty">Keine Projekte' + (_projStageFilter ? ' in dieser Stage' : ' angelegt') + '</div>';
+    return;
+  }
+
+  el.innerHTML = items.map(lead => {
+    const stg   = LEAD_STAGES[lead.stage] || LEAD_STAGES.zu_recherchieren;
+    const icon  = lead.type === 'open_area' ? '◆' : '■';
+    const addr  = lead.data?.address || lead.data?.name || `OSM ${lead.osm_id}`;
+    const kwp   = lead.data?.kwp || '—';
+    const pid   = fmtProjectId(lead.project_nr);
+    const title = lead.name ? lead.name : addr;
+    const sub   = lead.name ? addr : '';
+    const lastNote = lead.notes?.[0];
+    const noteText = lastNote ? lastNote.text.slice(0, 60) + (lastNote.text.length > 60 ? '…' : '') : '';
+    const dt    = new Date(lead.updated_at).toLocaleDateString('de-AT');
+    const ctct  = [lead.contact?.name, lead.contact?.phone].filter(Boolean).join(' · ');
+    const deadCls = lead.stage === 'verworfen' ? ' proj-card--dead' : '';
+    return `<div class="proj-card${deadCls}" onclick="flyToLead('${lead.id}')">
+      <div class="proj-card-icon" style="font-size:1rem">${icon}</div>
+      <div class="proj-card-body">
+        <div class="proj-card-title">
+          ${pid ? `<span style="font-size:.63rem;font-weight:800;color:#4a5268;background:#0e1018;border:1px solid #2e3450;padding:1px 6px;border-radius:4px;margin-right:5px;vertical-align:middle">${pid}</span>` : ''}${title}
+        </div>
+        <div class="proj-card-sub">
+          ${stagePill(lead.stage)}
+          ${ctct ? `<span style="margin-left:6px;font-size:.68rem;color:#6b7280">${ctct}</span>` : ''}
+        </div>
+        ${sub ? `<div class="proj-card-note" style="font-style:normal;color:#4a5268">${sub}</div>` : ''}
+        ${noteText ? `<div class="proj-card-note">"${noteText}"</div>` : ''}
+      </div>
+      <div class="proj-card-right">
+        <div class="proj-card-kwp">${kwp} kWp</div>
+        <div class="proj-card-date">${dt}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function flyToLead(leadId) {
+  const lead = _allProjects.find(l => l.id === leadId);
+  if (!lead) return;
+  closeProjectsModal();
+  const lat = lead.data?.lat, lng = lead.data?.lng;
+  if (lat && lng) map.setView([lat, lng], 16);
+  // Re-open sidebar using stored data
+  if (lead.type === 'open_area') {
+    showOpenAreaSidebar(lead.data);
+  } else {
+    showBuildingSidebar(lead.data);
+  }
+}
+
+// ══ ADMIN ════════════════════════════════════════════════════════════════════
+let _adminUser  = null;
+let _meRole     = null;
+/** Muss mit server.js ADMIN_USER (Bootstrap-htpasswd) übereinstimmen – Rolle wechseln nur Admin, kein Abwählen. */
+const _PRIMARY_ADMIN = 'cosimo';
+
+async function initAdmin() {
+  try {
+    const r = await apiFetch('/api/me');
+    const d = await r.json();
+    _adminUser = d.username;
+    _meRole    = d.role;
+    if (d.role === 'admin') {
+      const btn = document.getElementById('admin-btn');
+      if (btn) btn.style.display = '';
+    }
+  } catch {}
+}
+
+let _adminTrafoPoll = null;
+
+function openAdminModal() {
+  document.getElementById('admin-modal').style.display = 'flex';
+  document.getElementById('admin-msg').style.display = 'none';
+  loadAdminUsers();
+  loadAdminFeedback();
+  if (_adminTrafoPoll) clearInterval(_adminTrafoPoll);
+  _adminTrafoPoll = setInterval(refreshTrafoScanStatus, 4000);
+  refreshTrafoScanStatus();
+}
+function closeAdminModal() {
+  document.getElementById('admin-modal').style.display = 'none';
+  document.getElementById('admin-new-user').value = '';
+  document.getElementById('admin-new-pass').value = '';
+  if (_adminTrafoPoll) { clearInterval(_adminTrafoPoll); _adminTrafoPoll = null; }
+}
+
+async function refreshTrafoScanStatus() {
+  const line = document.getElementById('admin-trafo-scan-line');
+  const btn  = document.getElementById('admin-trafo-scan-btn');
+  if (!line || !btn) return;
+  if (_meRole !== 'admin') return;
+  try {
+    const r = await fetch('/api/scan/status');
+    const d = await r.json();
+    if (!r.ok) { line.textContent = d.error || 'Status nicht lesbar'; btn.disabled = false; return; }
+    btn.disabled = !!d.running;
+    if (d.running) {
+      line.textContent =
+        `Scan läuft…  (seit ${d.started_at || '?'})  pid=${d.pid ?? '?'}\n` +
+        `Zwischenstand trafos-latest.json: ${d.latest_count ?? '—'} Trafos  (${d.latest_scanned_at || '—'})`;
+    } else if (d.finished_at && d.exit_code !== null) {
+      const ok = d.exit_code === 0;
+      line.textContent = ok
+        ? `Letzter Lauf beendet: ${d.finished_at}  ·  exit ${d.exit_code}\n` +
+          `trafos-latest.json: ${d.latest_count ?? '—'} Trafos  (${d.latest_scanned_at || '—'})`
+        : `Letzter Lauf mit Fehler beendet: ${d.finished_at}  ·  exit ${d.exit_code}  ${d.spawn_error || ''}\n` +
+          (d.log_tail || '').slice(-1200);
+    } else {
+      line.textContent =
+        `Kein Scan aktiv.\n` +
+        `trafos-latest.json: ${d.latest_count ?? '—'} Trafos  (${d.latest_scanned_at || '—'})`;
+    }
+  } catch (e) {
+    line.textContent = 'Status: ' + e.message;
+  }
+}
+
+async function adminStartTrafoScan() {
+  if (_meRole !== 'admin') return;
+  if (!confirm(
+    'Alle Trafo-Stationen aus der EVN-WMS-Karte (TRAFO_MAP_URL) neu einlesen?\n\n' +
+    'Der Lauf dauert auf dem Server oft 15–60 Minuten und belastet die Kartendienste.\n\nFortfahren?'
+  )) return;
+  const r = await fetch('/api/scan', { method: 'POST' });
+  let d = {};
+  try { d = await r.json(); } catch {}
+  if (r.status === 409) {
+    showAdminMsg(d.error || 'Ein Scan läuft bereits.', 'error');
+    refreshTrafoScanStatus();
+    return;
+  }
+  if (!r.ok && r.status !== 202) {
+    showAdminMsg(d.error || 'Scan konnte nicht gestartet werden.', 'error');
+    refreshTrafoScanStatus();
+    return;
+  }
+  showAdminMsg(d.message || 'Trafo-Vollscan gestartet.', 'success');
+  refreshTrafoScanStatus();
+}
+
+const _ROLE_OPT = [
+  { v: 'admin', l: 'Admin' },
+  { v: 'vertrieb', l: 'Vertrieb' },
+  { v: 'assistenz', l: 'Assistenz' },
+];
+const _PERM_DEF = [
+  { t: 'Karte, Trafos & CRM: Daten lesen (Pipeline, Export, Audit, Firmenliste)' },
+  { t: 'CRM: Leads anlegen/bearbeiten, Stufe, Kontakt, GIS-Sync, Scan-Import' },
+  { t: 'Notizen zu Leads schreiben' },
+  { t: 'Firmen (Accounts) anlegen und bearbeiten' },
+  { t: 'Leads/Projekte löschen' },
+  { t: 'Notizen löschen' },
+  { t: 'Server-Admin: Benutzer, Passwörter, Rollen, Trafo-Scan, Feedback' },
+];
+function _permSetForRole(role) {
+  const a = { admin: [1,1,1,1,1,1,1], vertrieb: [1,1,1,1,1,1,0], assistenz: [1,1,1,0,0,0,0] };
+  const row = a[role] || a.assistenz;
+  return row;
+}
+function _buildPermPopInner(role) {
+  const row = _permSetForRole(role);
+  const lines = _PERM_DEF.map((d, i) => {
+    const on = row[i] === 1;
+    return `<div class="admin-perm-row ${on ? 'yes' : 'no'}">${esc(d.t)}</div>`;
+  }).join('');
+  return `<div class="admin-perm-t">Berechtigungen – ${_ROLE_OPT.find(x => x.v === role)?.l || role}</div>${lines}
+    <p class="subnote" style="margin:8px 0 0">Grau bzw. durchgestrichen: <strong>keine</strong> Berechtigung für diesen Eintrag (entspricht der App).</p>`;
+}
+function adminRoleSelectInputByEl(sel) {
+  if (!sel || !sel.id) return;
+  const un = sel.id.replace(/^admin-role-sel-/, '');
+  adminRoleSelectInput(un);
+}
+function _roleOptionsHtml(current) {
+  return _ROLE_OPT.map(o =>
+    `<option value="${o.v}" ${current === o.v ? 'selected' : ''}>${o.l}</option>`
+  ).join('');
+}
+function adminRoleSelectInput(uname) {
+  const sel = document.getElementById('admin-role-sel-' + uname);
+  const btn = document.getElementById('admin-role-save-' + uname);
+  const pop = document.getElementById('admin-perm-pop-' + uname);
+  if (!sel) return;
+  const saved = sel.getAttribute('data-saved') || '';
+  if (pop) {
+    const prev = sel.value || 'assistenz';
+    pop.innerHTML = _buildPermPopInner(prev);
+  }
+  if (btn) btn.disabled = (sel.value === saved);
+}
+function adminSaveUserRoleFor(btn) {
+  const un = btn && btn.getAttribute('data-username');
+  if (!un) return;
+  const sel = document.getElementById('admin-role-sel-' + un);
+  if (!sel) return;
+  const role = sel.value;
+  const saved = sel.getAttribute('data-saved');
+  if (role === saved) return;
+  adminSetUserRole(un, role);
+}
+async function loadAdminUsers() {
+  const el = document.getElementById('admin-user-list');
+  el.innerHTML = '<div style="font-size:.8rem;color:#4a5268">⏳ Lade…</div>';
+  try {
+    const r = await fetch('/api/admin/users');
+    const d = await r.json();
+    if (!r.ok) { el.innerHTML = `<div style="color:#fca5a5;font-size:.8rem">${esc(d.error || r.status)}</div>`; return; }
+    const users = d.users || [];
+    if (!users.length) { el.innerHTML = '<div style="font-size:.8rem;color:#4a5268">Keine Benutzer gefunden.</div>'; return; }
+    el.innerHTML = users.map(u => {
+      const un = u.username;
+      const role = u.role || 'assistenz';
+      const canDel = un !== _PRIMARY_ADMIN;
+      const unJson = JSON.stringify(un);
+      const permHtml = un === _PRIMARY_ADMIN ? _buildPermPopInner('admin') : _buildPermPopInner(role);
+      return `<div class="admin-user-row admin-user-block" data-username="${esc(un)}">
+        <div class="admin-user-top">
+          <span class="uname">${esc(un)}</span>
+          <span class="ubadge" title="Gespeicherte Rolle">${esc(_ROLE_OPT.find(x => x.v === role)?.l || role)}</span>
+        </div>
+        <div class="admin-user-tools" style="flex-direction:column;align-items:stretch;gap:6px">
+          ${un === _PRIMARY_ADMIN
+        ? `<div class="admin-role-line"><span style="color:#4a5268;white-space:nowrap">Rolle</span>
+            <select class="admin-role-sel" disabled title="Haupt-Admin"><option>Admin</option></select></div>`
+        : `<div class="admin-role-line">
+            <span style="color:#4a5268;white-space:nowrap;flex-shrink:0">Rolle</span>
+            <select class="admin-role-sel" id="admin-role-sel-${un}" data-saved="${role}" aria-label="Rolle"
+              oninput="adminRoleSelectInputByEl(this)">${_roleOptionsHtml(role)}</select>
+            <button type="button" class="admin-role-save" id="admin-role-save-${un}" data-username="${un}" disabled onclick="adminSaveUserRoleFor(this)">Speichern</button>
+          </div>`}
+          <div class="admin-perm-hint" title="">
+            <span class="admin-perm-ico" aria-hidden="true">ℹ</span>
+            <span class="admin-perm-ico-t">Berechtigungen (Hover)</span>
+            <div class="admin-perm-pop" id="admin-perm-pop-${un}">${permHtml}</div>
+          </div>
+          <div class="admin-role-line" style="margin-top:2px">
+          <input class="admin-pw-inp" type="password" id="admin-pw-${un}" placeholder="Neues Passwort" autocomplete="new-password" />
+          <button type="button" class="admin-pw-btn" onclick='adminSetPasswordFor(${unJson})'>Passwort setzen</button>
+          ${canDel
+        ? `<button class="admin-del-btn" type="button" onclick='adminDeleteUser(${unJson})'>🗑 Löschen</button>`
+        : '<span style="font-size:.65rem;color:#4a5268" title="Haupt-Account">geschützt</span>'}
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = `<div style="color:#fca5a5;font-size:.8rem">Fehler: ${esc(e.message)}</div>`;
+  }
+}
+async function adminSetUserRole(username, role) {
+  const r = await fetch('/api/admin/user-role', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, role }),
+  });
+  const d = await r.json();
+  if (r.ok) {
+    showAdminMsg('Rolle gespeichert: ' + username + ' → ' + role, 'success');
+    loadAdminUsers();
+  } else {
+    showAdminMsg(d.error || 'Rolle speichern fehlgeschlagen', 'error');
+    loadAdminUsers();
+  }
+}
+async function adminSetPasswordFor(username) {
+  const input = document.getElementById('admin-pw-' + username);
+  const password = input && input.value;
+  if (!password || password.length < 6) { showAdminMsg('Mindestens 6 Zeichen eingeben.', 'error'); return; }
+  const r = await fetch('/api/admin/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  const d = await r.json();
+  if (r.ok) {
+    if (input) input.value = '';
+    showAdminMsg('Passwort für ' + username + ' aktualisiert.', 'success');
+  } else {
+    showAdminMsg(d.error || 'Speichern fehlgeschlagen', 'error');
+  }
+}
+
+async function adminAddUser() {
+  const username = document.getElementById('admin-new-user').value.trim();
+  const password = document.getElementById('admin-new-pass').value;
+  if (!username || !password) { showAdminMsg('Benutzername und Passwort eingeben.', 'error'); return; }
+
+  const r = await fetch('/api/admin/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  const d = await r.json();
+  if (r.ok) {
+    document.getElementById('admin-new-user').value = '';
+    document.getElementById('admin-new-pass').value = '';
+    showAdminMsg(`✓ Benutzer „${username}" gespeichert.`, 'success');
+    loadAdminUsers();
+  } else {
+    showAdminMsg(`Fehler: ${d.error}`, 'error');
+  }
+}
+
+async function adminDeleteUser(username) {
+  if (!confirm(`Benutzer „${username}" wirklich löschen?`)) return;
+  const r = await fetch(`/api/admin/users/${encodeURIComponent(username)}`, { method: 'DELETE' });
+  const d = await r.json();
+  if (r.ok) {
+    showAdminMsg(`✓ Benutzer „${username}" gelöscht.`, 'success');
+    loadAdminUsers();
+  } else {
+    showAdminMsg(`Fehler: ${d.error}`, 'error');
+  }
+}
+
+function showAdminMsg(text, type) {
+  const el = document.getElementById('admin-msg');
+  el.style.display = 'block';
+  el.style.background = type === 'success' ? '#14532d' : '#450a0a';
+  el.style.color      = type === 'success' ? '#86efac' : '#fca5a5';
+  el.style.border     = `1px solid ${type === 'success' ? '#16a34a' : '#dc2626'}`;
+  el.textContent = text;
+}
+
+async function loadAdminFeedback() {
+  const el = document.getElementById('admin-feedback-list');
+  el.innerHTML = '<div style="font-size:.8rem;color:#4a5268">⏳ Lade…</div>';
+  try {
+    const r = await fetch('/api/admin/feedback');
+    const d = await r.json();
+    if (!r.ok) { el.innerHTML = `<div style="color:#fca5a5;font-size:.8rem">${d.error}</div>`; return; }
+    const items = d.items || [];
+    if (!items.length) {
+      el.innerHTML = '<div style="font-size:.8rem;color:#4a5268">Noch kein Feedback eingegangen.</div>';
+      return;
+    }
+    const EMOJI = { feature: '💡', bug: '🐛', other: '💬' };
+    el.innerHTML = items.map(fb => {
+      const dt = new Date(fb.timestamp).toLocaleString('de-AT', { dateStyle:'short', timeStyle:'short' });
+      return `<div class="admin-user-row" style="flex-direction:column;align-items:flex-start;gap:4px">
+        <div style="display:flex;width:100%;align-items:center;gap:6px">
+          <span style="font-size:.85rem">${EMOJI[fb.type] || '💬'}</span>
+          <span class="uname" style="font-weight:400;font-size:.8rem;flex:1">${esc(fb.description) || '—'}</span>
+          <button class="admin-del-btn" onclick="adminDeleteFeedback(${fb.id})">✕</button>
+        </div>
+        <div style="font-size:.65rem;color:#4a5268">${esc(dt)} · von ${esc(fb.user || 'anonym')} · Zoom ${esc(String(fb.zoom ?? '?'))}</div>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    el.innerHTML = `<div style="color:#fca5a5;font-size:.8rem">Fehler: ${e.message}</div>`;
+  }
+}
+
+async function adminDeleteFeedback(id) {
+  const r = await fetch(`/api/admin/feedback/${id}`, { method: 'DELETE' });
+  if ((await r.json()).ok) loadAdminFeedback();
+}
+
+// ══ Boot ═════════════════════════════════════════════════════════════════════
+// Von CRM/iframe: Dach in Satellit & Polygon fokussieren (Karte, neuer Tab, Embed)
+function scheduleCrmEmbedMapFix(isEmbed) {
+  if (!isEmbed) return;
+  const refit = () => {
+    try {
+      map.invalidateSize();
+      if (window._embedCrmLayer) {
+        const b = window._embedCrmLayer.getBounds();
+        if (b && b.isValid()) {
+          map.fitBounds(b.pad(0.03), { maxZoom: 19, padding: [6, 6], animate: false });
+        }
+      }
+    } catch (e) { console.warn('[embed map]', e); }
+  };
+  [0, 80, 250, 600].forEach(ms => setTimeout(() => {
+    try { map.invalidateSize(); } catch (e) {}
+    if (ms >= 80) refit();
+  }, ms));
+}
+
+async function applyCrmMapDeepLink() {
+  const p = new URLSearchParams(window.location.search);
+  const isEmbed = p.get('embed') === '1';
+  const isFromCrm = p.get('from_crm') === '1';
+  if (!isEmbed && !isFromCrm) return false;
+  if (isEmbed) {
+    if (typeof bldState !== 'undefined') bldState.enabled = false;
+    if (typeof oaState !== 'undefined') oaState.enabled = false;
+    const zm = document.getElementById('bld-zoom-msg');
+    if (zm) zm.style.display = 'none';
+    const tb = document.getElementById('topbar');
+    const fb = document.getElementById('filterbar');
+    const sb = document.getElementById('statsbar');
+    if (tb) tb.style.display = 'none';
+    if (fb) fb.style.display = 'none';
+    if (sb) sb.style.display = 'none';
+    const mw = document.getElementById('map-wrap');
+    if (mw) mw.style.cssText = 'flex:1;position:relative;min-height:0;height:100%;min-height:180px';
+    document.body.style.height = '100%';
+    document.documentElement.style.height = '100%';
+  }
+  setLayer(true);
+  const osm  = p.get('osm');
+  const latP = parseFloat(p.get('lat') || '');
+  const lngP = parseFloat(p.get('lng') || '');
+  const z    = Math.min(19, Math.max(3, parseInt(p.get('zoom') || '19', 10) || 19));
+  if (osm) {
+    try {
+      const r = await apiFetch('/api/leads/osm/' + encodeURIComponent(osm));
+      if (r.ok) {
+        const { lead } = await r.json();
+        if (lead && lead.data) {
+          const d = lead.data;
+          if (d.polygon && d.polygon.length) {
+            if (window._embedCrmLayer) { try { map.removeLayer(window._embedCrmLayer); } catch (e) {} }
+            window._embedCrmLayer = L.polygon(d.polygon, {
+              color: '#fbbf24', weight: 3, lineJoin: 'round',
+              fillColor: '#f59e0b', fillOpacity: 0.25,
+            }).addTo(map);
+            try {
+              const pad = isEmbed ? 0.03 : 0.05;
+              map.fitBounds(window._embedCrmLayer.getBounds().pad(pad), {
+                maxZoom: 19, padding: [10, 10], animate: false,
+              });
+            } catch (e) {
+              map.setView([d.lat, d.lng], Math.min(19, z), { animate: false });
+            }
+          } else if (d.lat != null && d.lng != null) {
+            map.setView([d.lat, d.lng], Math.min(19, z), { animate: false });
+          }
+          if (!isEmbed) {
+            if (lead.type === 'open_area') showOpenAreaSidebar(lead.data);
+            else showBuildingSidebar(lead.data);
+          }
+          scheduleCrmEmbedMapFix(isEmbed);
+          return true;
+        }
+      }
+    } catch (e) { console.warn('[crm map link]', e); }
+  }
+  if (isFinite(latP) && isFinite(lngP)) {
+    map.setView([latP, lngP], z);
+    scheduleCrmEmbedMapFix(isEmbed);
+    return true;
+  }
+  return false;
+}
+
+async function init() {
+  if (location.pathname === '/crm' || location.pathname.endsWith('/crm')) return;
+  try {
+    const r = await fetch('/api/scans');
+    state.scans = await r.json();
+    if (state.scans.length) updateTopBar(state.scans[0]);
+  } catch {}
+  // Activate default button states (sat + both area layers)
+  document.getElementById('btn-sat').classList.add('active');
+  document.getElementById('btn-osm').classList.remove('active');
+  document.getElementById('btn-buildings').classList.add('active');
+  document.getElementById('btn-open-areas').classList.add('active');
+  updateAreaControls();
+  initMeasureTool();
+  initAdmin();
+  const _p = new URLSearchParams(window.location.search);
+  const _isEmbedMap = _p.get('embed') === '1';
+  if (!_isEmbedMap) loadLeadMarkers();
+  await loadTrafos();
+  const hasCrmLink = await applyCrmMapDeepLink();
+  if (!hasCrmLink) {
+    const saved = loadMapState();
+    if (saved && saved.lat && saved.lng && saved.zoom) {
+      map.setView([saved.lat, saved.lng], saved.zoom);
+    } else if (state.trafosLayer) {
+      try { map.fitBounds(L.featureGroup([state.trafosLayer]).getBounds().pad(.05)); } catch {}
+    } else {
+      map.setView([48.2, 15.8], 8);
+    }
+  }
+}
+init().catch(console.error);
+</script>
+<script src="crm.js" defer></script>
+</body>
+</html>

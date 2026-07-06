@@ -1,0 +1,17 @@
+node_modules/
+.env
+# Nur lokal, überschreibt .env; wird bewusst nicht per deploy (scp) mitgeschickt
+.env.local
+.env.*.local
+npm-debug.log*
+yarn-error.log*
+
+# Betriebsdaten & Geheimnisse (nie committen)
+/data/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.claude/
+*.tgz
+*.zip
