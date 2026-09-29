@@ -71,6 +71,13 @@ input[type=number]{background:#1e2235;border:1px solid #2e3450;color:#c8d6f0;bor
 #sidebar-head h3{font-size:.86rem;color:#c8d6f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 #sb-close{cursor:pointer;color:#8892aa;font-size:1.2rem;line-height:1;flex-shrink:0}
 #sidebar-body{overflow-y:auto;flex:1;padding:14px}
+/* Karten-Legende (Status + Auswahl) */
+#map-legend{position:absolute;bottom:28px;left:10px;z-index:900;background:rgba(19,22,31,.92);border:1px solid #2e3450;border-radius:8px;padding:8px 10px;font-size:.68rem;color:#c8d6f0;line-height:1.35;pointer-events:none;max-width:min(220px,46vw);box-shadow:0 2px 10px rgba(0,0,0,.35)}
+#map-legend .leg-title{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#8892aa;margin-bottom:5px}
+#map-legend .leg-row{display:flex;align-items:center;gap:6px;margin:2px 0}
+#map-legend .leg-swatch{width:12px;height:12px;border-radius:2px;flex-shrink:0;border:1px solid rgba(255,255,255,.25)}
+.suggestion-empty{padding:10px 12px;font-size:.74rem;color:#8892aa;line-height:1.4}
+.suggestion-empty strong{color:#c8d6f0;font-weight:600}
 .sb-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #1e2235;font-size:.77rem}
 .sb-row .lbl{color:#8892aa}
 .sb-row .val{font-weight:600;color:#c8d6f0;text-align:right}
@@ -353,6 +360,16 @@ input[type=number]{background:#1e2235;border:1px solid #2e3450;color:#c8d6f0;bor
     <button onclick="clearMeasure()" style="background:none;border:none;color:#8892aa;cursor:pointer;font-size:.9rem;padding:0 4px">✕</button>
   </div>
   <div id="measure-result" style="display:none;position:absolute;bottom:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.82);color:#7ecfff;padding:8px 20px;border-radius:8px;font-size:.84rem;font-weight:600;z-index:2000;pointer-events:none;white-space:nowrap"></div>
+  <div id="map-legend" aria-hidden="true">
+    <div class="leg-title">Legende</div>
+    <div class="leg-row"><span class="leg-swatch" style="background:#169000"></span>Frei</div>
+    <div class="leg-row"><span class="leg-swatch" style="background:#52ff00"></span>Teilweise</div>
+    <div class="leg-row"><span class="leg-swatch" style="background:#ffff00"></span>Regional</div>
+    <div class="leg-row"><span class="leg-swatch" style="background:#febe04"></span>Lokal</div>
+    <div class="leg-row"><span class="leg-swatch" style="background:#cc0000"></span>Voll / keine Kapazität</div>
+    <div class="leg-row"><span class="leg-swatch" style="background:#7f1d1d;border-color:#450a0a"></span>Verworfen (CRM)</div>
+    <div class="leg-row"><span class="leg-swatch" style="background:#f59e0b;border:2px solid #fbbf24;box-sizing:border-box"></span>Auswahl</div>
+  </div>
   <div id="bld-zoom-msg" style="display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.78);color:#7ecfff;padding:14px 24px;border-radius:10px;font-size:.88rem;z-index:1500;pointer-events:none;text-align:center">
     Bitte reinzoomen um Dachflächen zu sehen<br><span style="font-size:.73rem;color:#8892aa">(Zoom 13+)</span>
   </div>
@@ -374,7 +391,7 @@ input[type=number]{background:#1e2235;border:1px solid #2e3450;color:#c8d6f0;bor
         <button type="button" class="sort-btn" onclick="downloadScanCSV()" title="Als CSV speichern">⬇ CSV</button>
         <button type="button" class="sort-btn" id="scan-crm-seed" onclick="seedScanToCrm()" title="Neue CRM-Projekte anlegen (ohne Duplikate)" style="border-color:#16a34a;color:#86efac">＋ CRM</button>
       </div>
-      <button onclick="openScanModal()" style="margin-left:auto;padding:2px 9px;border-radius:5px;font-size:.69rem;cursor:pointer;border:1px solid #2e3450;background:#1e2235;color:#8892aa">⚙ Filter</button>
+      <button onclick="openScanModal()" title="Scan-Parameter (Gebiet, Mindestfläche, Trafo-Status)" style="margin-left:auto;padding:2px 9px;border-radius:5px;font-size:.69rem;cursor:pointer;border:1px solid #2e3450;background:#1e2235;color:#8892aa">⚙ Scan-Parameter</button>
     </div>
     <div id="scan-list"></div>
   </div>
@@ -610,7 +627,9 @@ function openSidebar(title, html) {
   document.getElementById('sidebar-body').innerHTML = html;
   document.getElementById('sidebar').classList.add('open');
 }
-function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); }
+function closeSidebar() {
+  clearMapSelection({ closeSidebar: true, refresh: true });
+}
 document.getElementById('sb-close').addEventListener('click', closeSidebar);
 function sbRow(lbl, val) {
   return `<div class="sb-row"><span class="lbl">${lbl}</span><span class="val">${val}</span></div>`;
@@ -1021,13 +1040,22 @@ async function doSearch(q) {
 }
 function showSuggestions(results) {
   searchSugg.innerHTML = '';
-  if (!results.length) { hideSuggestions(); return; }
+  if (!results.length) {
+    const empty = document.createElement('div');
+    empty.className = 'suggestion-empty';
+    empty.innerHTML = '<strong>Keine Treffer</strong><br>Ort oder Straße nicht gefunden. Bitte anderen Suchbegriff versuchen.';
+    searchSugg.appendChild(empty);
+    searchSugg.style.display = 'block';
+    return;
+  }
   results.forEach(r => {
     const el = document.createElement('div');
     el.className = 'suggestion-item';
     el.textContent = r.display_name.split(',').slice(0, 3).join(', ');
     el.addEventListener('mousedown', ev => {
       ev.preventDefault();
+      // Ort gewechselt → alte Dach-Auswahl/Sidebar verwerfen (Lead-Nr. sonst falsch)
+      clearMapSelection({ closeSidebar: true, refresh: true });
       map.flyTo([+r.lat, +r.lon], 14, { duration: 1 });
       if (searchMarker) map.removeLayer(searchMarker);
       searchMarker = L.marker([+r.lat, +r.lon]).addTo(map)
@@ -1058,6 +1086,52 @@ const oaState  = { enabled: true,  layer: null, cache: new Map(), minArea: 500, 
 const VERWORFEN_MAP_STROKE = '#450a0a';
 const VERWORFEN_MAP_FILL   = '#7f1d1d';
 
+/** Einheitliche Auswahlfarbe (Dach/Freifläche) — bleibt nach Layer-Toggle erhalten */
+const SELECT_STROKE = '#fbbf24';
+const SELECT_FILL   = '#f59e0b';
+let _selectedOsmId = null;
+
+function osmKey(id) {
+  return id == null ? null : String(id).trim();
+}
+
+function isSelectedOsm(osm_id) {
+  const k = osmKey(osm_id);
+  return k != null && k !== '' && k === _selectedOsmId;
+}
+
+function clearMapSelection(opts) {
+  const closeSb = !opts || opts.closeSidebar !== false;
+  const doRefresh = !opts || opts.refresh !== false;
+  const had = _selectedOsmId != null;
+  _selectedOsmId = null;
+  if (typeof _currentBuilding !== 'undefined') _currentBuilding = null;
+  if (window._embedCrmLayer) {
+    try { map.removeLayer(window._embedCrmLayer); } catch (e) {}
+    window._embedCrmLayer = null;
+  }
+  if (closeSb) {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar-body').innerHTML = '';
+    document.getElementById('sb-title').textContent = '—';
+  }
+  if (had && doRefresh) refreshLeadDependentMapLayers();
+}
+
+function setMapSelection(osm_id) {
+  _selectedOsmId = osmKey(osm_id);
+}
+
+function selectionStyleOverrides(kind) {
+  return {
+    color: SELECT_STROKE,
+    weight: kind === 'open' ? 3.5 : 3.5,
+    dashArray: null,
+    fillColor: SELECT_FILL,
+    fillOpacity: kind === 'open' ? 0.35 : 0.45,
+  };
+}
+
 function leadStageForOsm(osm_id) {
   if (osm_id == null) return null;
   const k = String(osm_id).trim();
@@ -1066,6 +1140,9 @@ function leadStageForOsm(osm_id) {
 }
 
 function polygonStyleForOsm(nearest_trafo_status, osm_id, kind) {
+  if (isSelectedOsm(osm_id)) {
+    return selectionStyleOverrides(kind);
+  }
   if (leadStageForOsm(osm_id) === 'verworfen') {
     return {
       color: VERWORFEN_MAP_STROKE,
@@ -1083,6 +1160,35 @@ function polygonStyleForOsm(nearest_trafo_status, osm_id, kind) {
     fillColor: cfg.color,
     fillOpacity: kind === 'open' ? 0.18 : 0.5,
   };
+}
+
+/** Auswahl verwerfen, wenn das Objekt nach Filtern nicht mehr in den Treffern ist */
+function pruneSelectionIfFilteredOut() {
+  if (!_selectedOsmId) return;
+  const key = _selectedOsmId;
+  const bndKey = bboxKey(map.getBounds());
+  const bldReady = !bldState.enabled || bldState.cache.has(bndKey);
+  const oaReady  = !oaState.enabled || oaState.cache.has(bndKey);
+  // Warten, bis alle aktiven Layer-Caches beurteilbar sind (sonst False-Clear)
+  if (!bldReady || !oaReady) return;
+  if (!bldState.enabled && !oaState.enabled) {
+    clearMapSelection({ closeSidebar: true, refresh: false });
+    return;
+  }
+  let found = false;
+  if (bldState.enabled) {
+    const list = (bldState.cache.get(bndKey) || []).filter(b =>
+      b.roof_area_m2 >= bldState.minArea && state.statusFilter.has(b.nearest_trafo_status)
+    );
+    if (list.some(b => osmKey(b.osm_id) === key)) found = true;
+  }
+  if (oaState.enabled) {
+    const list = (oaState.cache.get(bndKey) || []).filter(a =>
+      a.area_m2 >= oaState.minArea && state.statusFilter.has(a.nearest_trafo_status)
+    );
+    if (list.some(a => osmKey(a.osm_id) === key)) found = true;
+  }
+  if (!found) clearMapSelection({ closeSidebar: true, refresh: false });
 }
 
 function refreshLeadDependentMapLayers() {
@@ -1173,6 +1279,7 @@ function renderBuildingPolygons(buildings) {
     state.statusFilter.has(b.nearest_trafo_status)
   );
   document.getElementById('stat-buildings').textContent = filtered.length.toLocaleString('de-AT');
+  pruneSelectionIfFilteredOut();
   if (!filtered.length) { document.getElementById('stat-mwp').textContent = '0'; return; }
 
   bldState.layer = L.layerGroup();
@@ -1255,6 +1362,7 @@ function renderOpenAreaPolygons(areas) {
     state.statusFilter.has(a.nearest_trafo_status)
   );
   updateOaStats(filtered.length, filtered.reduce((s, a) => s + (a.kwp || 0), 0));
+  pruneSelectionIfFilteredOut();
   if (!filtered.length) return;
 
   oaState.layer = L.layerGroup();
@@ -1308,6 +1416,7 @@ function updateCombinedMwp() {
 }
 
 function showOpenAreaSidebar(a) {
+  setMapSelection(a.osm_id);
   // _currentBuilding-kompatibles Objekt setzen (für searchOwner + saveLead)
   _currentBuilding = {
     lat: a.lat, lng: a.lng,
@@ -1382,6 +1491,7 @@ function showOpenAreaSidebar(a) {
     landuse: a.landuse, usable_area: a.usable_area, modules: a.modules, kwh_year: a.kwh_year,
     nearest_trafo_id: a.nearest_trafo_id, nearest_trafo_tst_id: a.nearest_trafo_tst_id,
   });
+  refreshLeadDependentMapLayers();
 }
 
 // ── Current building state for lead saving ────────────────────────────────────
@@ -1392,6 +1502,7 @@ function sbSection(title) {
 }
 
 function showBuildingSidebar(b) {
+  setMapSelection(b.osm_id);
   _currentBuilding = Object.assign({ type: 'building' }, b);
   _currentKataster = null;
   _currentOwner    = null;
@@ -1457,6 +1568,7 @@ function showBuildingSidebar(b) {
     usable_area: usable, modules, kwh_year: b.kwh_year,
     nearest_trafo_id: b.nearest_trafo_id, nearest_trafo_tst_id: b.nearest_trafo_tst_id,
   });
+  refreshLeadDependentMapLayers();
 }
 
 async function loadKataster(lat, lng, katId) {
@@ -1591,6 +1703,7 @@ document.getElementById('btn-buildings').addEventListener('click', function() {
     if (!oaState.enabled) document.getElementById('bld-zoom-msg').style.display = 'none';
     document.getElementById('stat-buildings').textContent = '—';
     if (!oaState.enabled) document.getElementById('stat-mwp').textContent = '—';
+    pruneSelectionIfFilteredOut();
   } else { loadBuildingsViewport(); }
 });
 
@@ -1604,6 +1717,7 @@ document.getElementById('btn-open-areas').addEventListener('click', function() {
     if (!bldState.enabled) document.getElementById('bld-zoom-msg').style.display = 'none';
     updateOaStats(0, 0);
     if (!bldState.enabled) document.getElementById('stat-mwp').textContent = '—';
+    pruneSelectionIfFilteredOut();
   } else { loadOpenAreasViewport(); }
 });
 
@@ -2954,11 +3068,16 @@ async function adminDeleteFeedback(id) {
 
 // ══ Boot ═════════════════════════════════════════════════════════════════════
 // Von CRM/iframe: Dach in Satellit & Polygon fokussieren (Karte, neuer Tab, Embed)
-function scheduleCrmEmbedMapFix(isEmbed) {
-  if (!isEmbed) return;
+function scheduleCrmEmbedMapFix(isEmbed, lockedZoom) {
+  if (!isEmbed && lockedZoom == null) return;
   const refit = () => {
     try {
       map.invalidateSize();
+      if (lockedZoom != null) {
+        const c = map.getCenter();
+        map.setView(c, lockedZoom, { animate: false });
+        return;
+      }
       if (window._embedCrmLayer) {
         const b = window._embedCrmLayer.getBounds();
         if (b && b.isValid()) {
@@ -2993,11 +3112,14 @@ async function applyCrmMapDeepLink() {
     if (mw) mw.style.cssText = 'flex:1;position:relative;min-height:0;height:100%;min-height:180px';
     document.body.style.height = '100%';
     document.documentElement.style.height = '100%';
+    const leg = document.getElementById('map-legend');
+    if (leg) leg.style.display = 'none';
   }
   setLayer(true);
   const osm  = p.get('osm');
   const latP = parseFloat(p.get('lat') || '');
   const lngP = parseFloat(p.get('lng') || '');
+  const hasZoomParam = p.has('zoom');
   const z    = Math.min(19, Math.max(3, parseInt(p.get('zoom') || '19', 10) || 19));
   if (osm) {
     try {
@@ -3006,28 +3128,42 @@ async function applyCrmMapDeepLink() {
         const { lead } = await r.json();
         if (lead && lead.data) {
           const d = lead.data;
+          setMapSelection(lead.osm_id || osm);
           if (d.polygon && d.polygon.length) {
             if (window._embedCrmLayer) { try { map.removeLayer(window._embedCrmLayer); } catch (e) {} }
-            window._embedCrmLayer = L.polygon(d.polygon, {
-              color: '#fbbf24', weight: 3, lineJoin: 'round',
-              fillColor: '#f59e0b', fillOpacity: 0.25,
-            }).addTo(map);
-            try {
-              const pad = isEmbed ? 0.03 : 0.05;
-              map.fitBounds(window._embedCrmLayer.getBounds().pad(pad), {
-                maxZoom: 19, padding: [10, 10], animate: false,
-              });
-            } catch (e) {
-              map.setView([d.lat, d.lng], Math.min(19, z), { animate: false });
+            // Embed: eigenes Highlight; App: Auswahlfarbe über Layer-Render
+            if (isEmbed) {
+              window._embedCrmLayer = L.polygon(d.polygon, {
+                color: SELECT_STROKE, weight: 3, lineJoin: 'round',
+                fillColor: SELECT_FILL, fillOpacity: 0.25,
+              }).addTo(map);
+            }
+            if (hasZoomParam && isFinite(d.lat) && isFinite(d.lng)) {
+              map.setView([d.lat, d.lng], z, { animate: false });
+            } else if (hasZoomParam && isFinite(latP) && isFinite(lngP)) {
+              map.setView([latP, lngP], z, { animate: false });
+            } else {
+              try {
+                const pad = isEmbed ? 0.03 : 0.05;
+                map.fitBounds(L.latLngBounds(d.polygon).pad(pad), {
+                  maxZoom: z, padding: [10, 10], animate: false,
+                });
+              } catch (e) {
+                const la = d.lat != null ? d.lat : latP;
+                const ln = d.lng != null ? d.lng : lngP;
+                if (isFinite(la) && isFinite(ln)) map.setView([la, ln], z, { animate: false });
+              }
             }
           } else if (d.lat != null && d.lng != null) {
-            map.setView([d.lat, d.lng], Math.min(19, z), { animate: false });
+            map.setView([d.lat, d.lng], z, { animate: false });
+          } else if (isFinite(latP) && isFinite(lngP)) {
+            map.setView([latP, lngP], z, { animate: false });
           }
           if (!isEmbed) {
             if (lead.type === 'open_area') showOpenAreaSidebar(lead.data);
             else showBuildingSidebar(lead.data);
           }
-          scheduleCrmEmbedMapFix(isEmbed);
+          scheduleCrmEmbedMapFix(isEmbed, hasZoomParam ? z : null);
           return true;
         }
       }
@@ -3035,7 +3171,7 @@ async function applyCrmMapDeepLink() {
   }
   if (isFinite(latP) && isFinite(lngP)) {
     map.setView([latP, lngP], z);
-    scheduleCrmEmbedMapFix(isEmbed);
+    scheduleCrmEmbedMapFix(isEmbed, hasZoomParam ? z : null);
     return true;
   }
   return false;
@@ -3062,13 +3198,21 @@ async function init() {
   await loadTrafos();
   const hasCrmLink = await applyCrmMapDeepLink();
   if (!hasCrmLink) {
-    const saved = loadMapState();
-    if (saved && saved.lat && saved.lng && saved.zoom) {
-      map.setView([saved.lat, saved.lng], saved.zoom);
-    } else if (state.trafosLayer) {
-      try { map.fitBounds(L.featureGroup([state.trafosLayer]).getBounds().pad(.05)); } catch {}
+    const latQ = parseFloat(_p.get('lat') || '');
+    const lngQ = parseFloat(_p.get('lng') || '');
+    const hasZoomQ = _p.has('zoom');
+    const zoomQ = Math.min(19, Math.max(3, parseInt(_p.get('zoom') || '14', 10) || 14));
+    if (isFinite(latQ) && isFinite(lngQ)) {
+      map.setView([latQ, lngQ], hasZoomQ ? zoomQ : 14);
     } else {
-      map.setView([48.2, 15.8], 8);
+      const saved = loadMapState();
+      if (saved && saved.lat && saved.lng && saved.zoom) {
+        map.setView([saved.lat, saved.lng], saved.zoom);
+      } else if (state.trafosLayer) {
+        try { map.fitBounds(L.featureGroup([state.trafosLayer]).getBounds().pad(.05)); } catch {}
+      } else {
+        map.setView([48.2, 15.8], 8);
+      }
     }
   }
 }
