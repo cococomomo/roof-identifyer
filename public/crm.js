@@ -254,6 +254,39 @@
   }
 
   let _state = { leads: [], stageLabels: {}, me: null, accounts: [] };
+  let _crmFilterQ = '';
+
+  function normFilter(s) {
+    return String(s || '').toLowerCase().trim();
+  }
+
+  function leadMatchesFilter(L, qRaw) {
+    const q = normFilter(qRaw);
+    if (!q) return true;
+    const d = (L && L.data) || {};
+    const c = (L && L.contact) || {};
+    const nr = L && L.project_nr != null ? String(L.project_nr) : '';
+    const pid = nr ? ('p-' + nr.padStart(3, '0')) : '';
+    const hay = [
+      L && L.name,
+      L && L.account_name,
+      d.address,
+      d.name,
+      c.name,
+      c.phone,
+      c.email,
+      L && L.osm_id,
+      nr,
+      pid,
+      'p' + nr,
+    ].map(normFilter).join(' ');
+    const tokens = q.split(/\s+/).filter(Boolean);
+    return tokens.every(t => hay.includes(t));
+  }
+
+  function filteredLeads() {
+    return (_state.leads || []).filter(L => leadMatchesFilter(L, _crmFilterQ));
+  }
 
   async function loadMe() {
     const r = await api('/api/me');
@@ -287,13 +320,17 @@
 
   function renderKanban() {
     const sk = getSortKey();
+    const leads = filteredLeads();
     const by = {};
     STAGE_ORDER.forEach(s => { by[s] = []; });
-    for (const L of _state.leads) {
+    for (const L of leads) {
       if (!by[L.stage]) by[L.stage] = [];
       by[L.stage].push(L);
     }
     STAGE_ORDER.forEach(s => { by[s] = sortLeadsList(by[s] || [], sk); });
+    if (_crmFilterQ && !leads.length) {
+      return `<div class="crm-filter-empty">Keine Treffer für „${esc(_crmFilterQ)}“.<br>Suche nach Firma, Ort/Adresse oder Lead-Nr. (z.&nbsp;B. P-012).</div>`;
+    }
     const cols = STAGE_ORDER.map(st => {
       const label = _state.stageLabels[st] || st;
       const cards = (by[st] || []).map(L => cardHtml(L)).join('');
@@ -332,7 +369,7 @@
 
   function renderTable() {
     const ts = getTableSort();
-    const leadsSorted = sortLeadsForTable(_state.leads, ts.col, ts.dir);
+    const leadsSorted = sortLeadsForTable(filteredLeads(), ts.col, ts.dir);
     const sortInd = (c) => (ts.col === c ? (ts.dir === 'asc' ? ' ▲' : ' ▼') : '');
     const thCell = (c) => {
       const T = TABLE_COLUMNS.find(x => x.id === c);
@@ -343,6 +380,9 @@
       </th>`;
     };
     const cols = TABLE_COLUMNS.map(c => `<col style="width:${colWidthPx(c.id)}px"/>`).join('');
+    if (_crmFilterQ && !leadsSorted.length) {
+      return `<div class="crm-filter-empty">Keine Treffer für „${esc(_crmFilterQ)}“.<br>Suche nach Firma, Ort/Adresse oder Lead-Nr.</div>`;
+    }
     const rows = leadsSorted.map(L => {
       const d = L.data || {};
       const c = L.contact || {};
@@ -377,7 +417,7 @@
   }
 
   function renderTermine() {
-    const items = _state.leads
+    const items = filteredLeads()
       .filter(L => {
         const d = L.data || {};
         if (d.reminder_completed === true) return false;
@@ -392,6 +432,9 @@
       .sort((a, b) => a.iso.localeCompare(b.iso));
 
     if (!items.length) {
+      if (_crmFilterQ) {
+        return `<div class="crm-filter-empty">Keine Termine für „${esc(_crmFilterQ)}“.</div>`;
+      }
       return '<div class="crm-termine-empty">Keine offenen Erinnerungen / Termine.</div>';
     }
 
@@ -449,6 +492,10 @@
     if (!root) return;
     const role = _state.me && _state.me.role;
     if (_tab === 'audit' && role !== 'admin') _tab = 'kanban';
+    const prevFilter = document.getElementById('crm-filter-q');
+    const keepFilterFocus = !!(prevFilter && document.activeElement === prevFilter);
+    const filterSelStart = keepFilterFocus ? prevFilter.selectionStart : null;
+    const filterSelEnd = keepFilterFocus ? prevFilter.selectionEnd : null;
 
     const auditTab = role === 'admin'
       ? `<button type="button" class="crm-tab ${_tab === 'audit' ? 'on' : ''}" data-t="audit">Audit</button>`
@@ -489,6 +536,10 @@
       ${terminTab}
       ${auditTab}
       <span class="crm-toolbar-sp"></span>
+      <div class="crm-filter-wrap" title="Filter nach Firma, Ort/Adresse oder Lead-Nr.">
+        <input type="search" class="crm-filter-inp" id="crm-filter-q" placeholder="Firma, Ort, Lead-Nr.…" value="${esc(_crmFilterQ)}" autocomplete="off" spellcheck="false" aria-label="CRM filtern"/>
+        ${_crmFilterQ ? '<button type="button" class="crm-filter-clear" id="crm-filter-clear" title="Filter löschen">✕</button>' : ''}
+      </div>
       ${sortBlock}
       <a class="crm-export" href="/api/crm/export.csv" target="_blank">CSV exportieren</a>
       <button type="button" class="crm-theme-btn" id="crm-theme-tgl" title="Hell- / Dunkelmodus">${th}</button>
@@ -499,6 +550,39 @@
 
     const ul = document.getElementById('crm-user-label');
     if (ul && _state.me) ul.textContent = (_state.me.username || '') + (role ? ' · ' + role : '');
+
+    const filterInp = document.getElementById('crm-filter-q');
+    if (filterInp) {
+      let filterTimer = null;
+      filterInp.addEventListener('input', () => {
+        clearTimeout(filterTimer);
+        filterTimer = setTimeout(() => {
+          _crmFilterQ = filterInp.value || '';
+          renderAll();
+        }, 180);
+      });
+      filterInp.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          _crmFilterQ = '';
+          renderAll();
+        }
+      });
+      if (keepFilterFocus) {
+        try {
+          filterInp.focus();
+          const a = filterSelStart != null ? filterSelStart : filterInp.value.length;
+          const b = filterSelEnd != null ? filterSelEnd : filterInp.value.length;
+          filterInp.setSelectionRange(a, b);
+        } catch (e) { /* ignore */ }
+      }
+    }
+    const filterClear = document.getElementById('crm-filter-clear');
+    if (filterClear) {
+      filterClear.addEventListener('click', () => {
+        _crmFilterQ = '';
+        renderAll();
+      });
+    }
 
     const tgl = document.getElementById('crm-theme-tgl');
     if (tgl) {
@@ -1377,15 +1461,21 @@ tr.crm-rem--soon td{background:rgba(161,98,7,.18)!important}
 .crm-export{font-size:.76rem;color:#16a34a!important;font-weight:700}
 #view-crm[data-crm-theme="light"] .crm-export{color:#15803d!important}
 .crm-user{font-size:.72rem;color:var(--crm-muted)}
-.crm-body{flex:1;overflow:auto;padding:10px;scrollbar-color:var(--crm-scroll-thumb) var(--crm-scroll-track);scrollbar-width:thin}
+.crm-body{flex:1;overflow:auto;padding:10px;scrollbar-color:var(--crm-scroll-thumb) var(--crm-scroll-track);scrollbar-width:thin;min-height:0;min-width:0}
 .crm-body::-webkit-scrollbar,.crm-col-body::-webkit-scrollbar,.crm-table-wrap::-webkit-scrollbar,.crm-detail-inner::-webkit-scrollbar{width:9px;height:9px}
 .crm-body::-webkit-scrollbar-track,.crm-col-body::-webkit-scrollbar-track,.crm-table-wrap::-webkit-scrollbar-track,.crm-detail-inner::-webkit-scrollbar-track{background:var(--crm-scroll-track);border-radius:5px}
 .crm-body::-webkit-scrollbar-thumb,.crm-col-body::-webkit-scrollbar-thumb,.crm-table-wrap::-webkit-scrollbar-thumb,.crm-detail-inner::-webkit-scrollbar-thumb{background:var(--crm-scroll-thumb);border-radius:5px}
-.crm-kanban{display:flex;gap:10px;align-items:flex-start;min-height:400px}
-.crm-col{flex:1;min-width:160px;background:var(--crm-panel);border:1px solid var(--crm-brd);border-radius:8px;display:flex;flex-direction:column;max-height:calc(100vh - 140px)}
+.crm-kanban{display:flex;gap:10px;align-items:stretch;min-height:400px;width:max-content;min-width:100%;box-sizing:border-box;padding-bottom:6px}
+.crm-col{flex:0 0 200px;width:200px;min-width:200px;max-width:200px;background:var(--crm-panel);border:1px solid var(--crm-brd);border-radius:8px;display:flex;flex-direction:column;max-height:calc(100vh - 140px)}
 .crm-col-head{padding:8px;font-size:.72rem;font-weight:800;color:var(--crm-link);border-bottom:1px solid var(--crm-brd)}
 .crm-n{opacity:.6}
 .crm-col-body{padding:6px;overflow-y:auto;flex:1;scrollbar-color:var(--crm-scroll-thumb) var(--crm-scroll-track);scrollbar-width:thin}
+.crm-filter-inp{background:var(--crm-panel);color:var(--crm-txt);border:1px solid var(--crm-brd);border-radius:6px;padding:5px 10px;font-size:.74rem;min-width:min(220px,42vw);max-width:280px}
+.crm-filter-inp:focus{outline:none;border-color:#2563eb}
+.crm-filter-wrap{display:flex;align-items:center;gap:6px}
+.crm-filter-clear{background:none;border:1px solid var(--crm-brd);color:var(--crm-muted);border-radius:6px;padding:4px 8px;cursor:pointer;font-size:.72rem}
+.crm-filter-clear:hover{color:var(--crm-txt)}
+.crm-filter-empty{padding:28px 16px;text-align:center;color:var(--crm-muted);font-size:.82rem;line-height:1.5}
 .crm-col-body.drag-over{background:rgba(37,99,235,.12)}
 .crm-card{background:var(--crm-panel);border:1px solid var(--crm-brd);border-radius:6px;padding:7px;margin-bottom:6px;cursor:grab;font-size:.74rem;box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .crm-card.crm-card--discard{border-color:#b91c1c;background:rgba(127,29,29,.14)}
